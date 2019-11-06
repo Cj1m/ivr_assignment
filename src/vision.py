@@ -4,6 +4,7 @@ import roslib
 import sys
 import rospy
 import cv2
+import math
 import numpy as np
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
@@ -39,6 +40,11 @@ class vision:
     self.joint4_pos = {"x": 0, "y": 0, "z": 0}
     # Joint EE co-ordinates
     self.jointEE_pos = {"x": 0, "y": 0, "z": 0}
+    # Colour threshold dictionary
+    self.upper_threshold = {'yellow':  (5, 255, 255), 'blue' : (255, 5, 5), 'green' : (5, 255, 5), 'red': (5, 5, 255) }
+    #Colour lower threshold disctionary
+    self.lower_threshold = {'yellow': (0,10,10), 'blue' : (10, 0, 0), 'green' :  (0, 10, 0), 'red': (0, 0, 10) }
+
 
   # Receive data from camera 1 and camera 2
   def callback(self, data1, data2):
@@ -53,16 +59,16 @@ class vision:
     #cv2.imshow("ftp", self.cv_image1)
     cv2.waitKey(1)
     #Get each joints co-ordinates from camera 1
-    image1_joint1 = self.get_joint_coordinates(self.cv_image1, (0,10,10), (5, 255, 255))
-    image1_joint23 = self.get_joint_coordinates(self.cv_image1, (10,0,0), (255, 5, 5))
-    image1_joint4 = self.get_joint_coordinates(self.cv_image1, (0,10,0), (5, 255, 5))
-    image1_jointEE = self.get_joint_coordinates(self.cv_image1, (0,0,10), (5, 5, 255))
+    image1_joint1 = self.get_joint_coordinates(self.cv_image1, "yellow")
+    image1_joint23 = self.get_joint_coordinates(self.cv_image1, "blue" )
+    image1_joint4 = self.get_joint_coordinates(self.cv_image1, "green" )
+    image1_jointEE = self.get_joint_coordinates(self.cv_image1, "red")
 
     #Get each joints co-ordinates from camera 2
-    image2_joint1 = self.get_joint_coordinates(self.cv_image2, (0, 10, 10), (5, 255, 255))
-    image2_joint23 = self.get_joint_coordinates(self.cv_image2, (10, 0, 0), (255, 5, 5))
-    image2_joint4 = self.get_joint_coordinates(self.cv_image2, (0, 10, 0), (5, 255, 5))
-    image2_jointEE = self.get_joint_coordinates(self.cv_image2, (0, 0, 10), (5, 5, 255))
+    image2_joint1 = self.get_joint_coordinates(self.cv_image2, "yellow")
+    image2_joint23 = self.get_joint_coordinates(self.cv_image2,  "blue" )
+    image2_joint4 = self.get_joint_coordinates(self.cv_image2, "green" )
+    image2_jointEE = self.get_joint_coordinates(self.cv_image2,  "red")
 
     # Compare co-ordinates obtained from camera 1 and camera 2
     # Update each joints global variable position
@@ -71,7 +77,10 @@ class vision:
     self.set_coordinates(image1_joint4, image2_joint4, self.joint4_pos)
     self.set_coordinates(image1_jointEE, image2_jointEE, self.jointEE_pos)
 
-    print(self.jointEE_pos)
+    link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
+    link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
+
+    print(link2_angle)
 
   def set_coordinates(self, image1_joint, image2_joint, joint_pos):
     joint_pos["x"] = image2_joint[0]
@@ -84,19 +93,38 @@ class vision:
     elif image2_joint[1] != 0:
       joint_pos["z"] = (image2_joint[1] + image1_joint[1]) / 2
 
-  def get_joint_coordinates(self, image, lower_thresh, upper_thresh):
+  def get_joint_coordinates(self, image, colour):
 
-    thresholded_image = cv2.inRange(image, lower_thresh, upper_thresh)
+    thresholded_image = cv2.inRange(image, self.lower_threshold[colour], self.upper_threshold[colour])
     kernel = np.ones((5, 5), np.uint8)
     mask = cv2.dilate(thresholded_image, kernel, iterations=3)
     
     ret, thresh = cv2.threshold(mask, 127, 255, 0)
     contours, hierarchy = cv2.findContours(thresh, 1, 2)
-    cnt = contours[0]
-    M = cv2.moments(cnt)
-    center_1 = int(M['m10'] / M['m00'])
-    center_2 = int(M['m01'] / M['m00'])
-    return [center_1, center_2]
+
+    # If current joint is obscured by another joint use the co-ordinates of that joint
+    if len(contours) == 0:
+      colours = np.array(["yellow", "blue", "green", "red"])
+      next_colour_position = np.char.find(colours, colour)[0] + 1
+      if next_colour_position > 3:
+        return self.get_joint_coordinates(image, colours[0])
+      else:
+         return self.get_joint_coordinates(image, colours[next_colour_position])
+    else:
+      cnt = contours[0]
+      M = cv2.moments(cnt)
+      center_1 = int(M['m10'] / M['m00'])
+      center_2 = int(M['m01'] / M['m00'])
+      return [center_1, center_2]
+
+  # Returns the angle between two points in a 2D plane about a horizontal plane
+  def get_angle_between_points(self, point1, point2):
+
+    xz_angle = (np.arctan2(point2['z'] - point1['z'], point2['x'] - point1['x']))
+    yz_angle = (np.arctan2(point2['z'] - point1['z'], point2['y'] - point1['y']))
+
+    return [xz_angle, yz_angle]
+
 
 # call the class
 def main(args):
