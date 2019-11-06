@@ -124,8 +124,8 @@ class vision:
   # Returns the angle between two points in a 2D plane about a horizontal plane
   def get_angle_between_points(self, point1, point2):
 
-    xz_angle = (math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2
-    yz_angle = (math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2
+    xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2) % math.pi
+    yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2) % math.pi
 
     return [xz_angle, yz_angle]
 
