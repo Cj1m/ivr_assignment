@@ -56,7 +56,8 @@ class vision:
     except CvBridgeError as e:
       print(e)
 
-    #cv2.imshow("ftp", self.cv_image1)
+    cv2.imshow("image 1", self.cv_image1)
+    cv2.imshow("image 2", self.cv_image2)
     cv2.waitKey(1)
     #Get each joints co-ordinates from camera 1
     image1_joint1 = self.get_joint_coordinates(self.cv_image1, "yellow")
@@ -76,6 +77,9 @@ class vision:
     self.set_coordinates(image1_joint23, image2_joint23, self.joint23_pos)
     self.set_coordinates(image1_joint4, image2_joint4, self.joint4_pos)
     self.set_coordinates(image1_jointEE, image2_jointEE, self.jointEE_pos)
+
+    print("Joint 2 position: " + str(self.joint23_pos))
+    print("Joint 4 position: " + str(self.joint4_pos))
 
     link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
     link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
@@ -120,8 +124,8 @@ class vision:
   # Returns the angle between two points in a 2D plane about a horizontal plane
   def get_angle_between_points(self, point1, point2):
 
-    xz_angle = (np.arctan2(point2['z'] - point1['z'], point2['x'] - point1['x']))
-    yz_angle = (np.arctan2(point2['z'] - point1['z'], point2['y'] - point1['y']))
+    xz_angle = (math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2
+    yz_angle = (math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2
 
     return [xz_angle, yz_angle]
 
