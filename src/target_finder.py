@@ -57,8 +57,10 @@ class target_finder:
 
         complete_target = threshold_objects1 + threshold_target2 + threshold_box
 
+        kernel = np.ones((2, 2), np.uint8)
 
-
+        complete_target = cv2.erode(complete_target, kernel, iterations=1)
+        complete_target = cv2.dilate(complete_target, kernel, iterations=3)
         cv2.imshow("threshold", complete_target)
 
 
