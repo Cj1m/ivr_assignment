@@ -45,14 +45,19 @@ class target_finder:
             print(e)
 
         cv2.waitKey(3)
-        cv2.imshow("image", self.cv_image2)
+        cv2.imshow("image", self.cv_image1)
 
         complete_target1 = self.threshold_targets(self.cv_image1)
         complete_target2 = self.threshold_targets(self.cv_image2)
 
-        cv2.imshow("threshold", complete_target1)
+        #cv2.imshow("threshold", complete_target1)
         target_centers1 = self.find_centers(complete_target1)
         target_centers2 = self.find_centers(complete_target2)
+
+        base_frame_xzcoords = self.get_base_frame_position(self.cv_image1)
+        base_frame_yzcoords = self.get_base_frame_position(self.cv_image2)
+
+        base_frame_center = [base_frame_xzcoords[0], base_frame_yzcoords[0], base_frame_yzcoords[1]]
 
     def find_centers(self, complete_target):
         cnts, hierarchy = cv2.findContours(complete_target, cv2.RETR_CCOMP,
@@ -63,7 +68,7 @@ class target_finder:
            M = cv2.moments(c)
            cX = int(M["m10"] / M["m00"])
            cY = int(M["m01"] / M["m00"])
-           centers.append((cX,cY))
+           centers.append((cX, cY))
 
         return centers
 
@@ -84,6 +89,24 @@ class target_finder:
 
         return complete_target
 
+
+    def get_base_frame_position(self, image):
+        thresholded_image1 = cv2.inRange(image, (102, 102, 102), (140, 140, 140))
+
+        kernel = np.ones((2, 2), np.uint8)
+        thresholded_image = cv2.erode(thresholded_image1, kernel, iterations=1)
+
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.dilate(thresholded_image, kernel, iterations=3)
+
+        ret, thresh = cv2.threshold(mask, 127, 255, 0)
+        contours, hierarchy = cv2.findContours(thresh, 1, 2)
+
+        cnt = contours[0]
+        M = cv2.moments(cnt)
+        center_1 = int(M['m10'] / M['m00'])
+        center_2 = int(M['m01'] / M['m00'])
+        return [center_1, center_2]
 
 
 # call the class
