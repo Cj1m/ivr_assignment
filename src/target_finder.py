@@ -45,8 +45,9 @@ class target_finder:
             print(e)
 
         cv2.waitKey(3)
-        cv2.imshow("image", self.cv_image1)
-        thresholded_image1 = cv2.inRange(self.cv_image1, (70, 100, 130), (120, 150, 160))
+        cv2.imshow("image", self.cv_image2)
+        thresholded_image1 = cv2.inRange(self.cv_image2, (70, 100, 130), (120, 150, 160))
+        thresholded_image2 = cv2.inRange(self.cv_image2, (27, 55, 70), (40, 70, 95))
         cv2.imshow("threshold", thresholded_image1)
 
 
