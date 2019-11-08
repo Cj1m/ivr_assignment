@@ -47,21 +47,42 @@ class target_finder:
         cv2.waitKey(3)
         cv2.imshow("image", self.cv_image2)
 
+        complete_target1 = self.threshold_targets(self.cv_image1)
+        complete_target2 = self.threshold_targets(self.cv_image2)
+
+        cv2.imshow("threshold", complete_target1)
+        target_centers1 = self.find_centers(complete_target1)
+        target_centers2 = self.find_centers(complete_target2)
+
+    def find_centers(self, complete_target):
+        cnts, hierarchy = cv2.findContours(complete_target, cv2.RETR_CCOMP,
+                                cv2.CHAIN_APPROX_TC89_L1)
+
+        centers = []
+        for c in cnts:
+           M = cv2.moments(c)
+           cX = int(M["m10"] / M["m00"])
+           cY = int(M["m01"] / M["m00"])
+           centers.append((cX,cY))
+
+        return centers
+
+    def threshold_targets(self, image):
         # Threshold for both box and target on light background
-        threshold_objects1 = cv2.inRange(self.cv_image2, (70, 100, 130), (120, 150, 160))
+        threshold_objects1 = cv2.inRange(image, (70, 100, 130), (120, 150, 160))
         # Threshold for target on dark background
-        threshold_target2 = cv2.inRange(self.cv_image2, (27, 55, 70), (40, 70, 95))
+        threshold_target2 = cv2.inRange(image, (27, 55, 70), (40, 70, 95))
 
         # Threshold box for when its behind robots
-        threshold_box = cv2.inRange(self.cv_image2, (0, 7, 12), (0.5, 45, 65))
+        threshold_box = cv2.inRange(image, (0, 7, 12), (0.5, 45, 65))
 
         complete_target = threshold_objects1 + threshold_target2 + threshold_box
 
         kernel = np.ones((2, 2), np.uint8)
-
         complete_target = cv2.erode(complete_target, kernel, iterations=1)
         complete_target = cv2.dilate(complete_target, kernel, iterations=3)
-        cv2.imshow("threshold", complete_target)
+
+        return complete_target
 
 
 
