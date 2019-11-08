@@ -57,10 +57,11 @@ class target_finder:
         complete_target1 = self.threshold_targets(self.cv_image1)
         complete_target2 = self.threshold_targets(self.cv_image2)
 
-
         #cv2.imshow("threshold", complete_target1)
         target_centers1 = self.find_centers(complete_target1)
         target_centers2 = self.find_centers(complete_target2)
+
+        #TODO: crop each image center, chamfer match, get full set of coords for each target, convert to coords relative to base frame position (in meters)
 
     def find_centers(self, complete_target):
         cnts, hierarchy = cv2.findContours(complete_target, cv2.RETR_CCOMP,
