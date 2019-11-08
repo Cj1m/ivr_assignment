@@ -24,6 +24,8 @@ class target_finder:
         # Subscribe to camera 2 output processed by image2.py
         self.image_sub2 = message_filters.Subscriber("/image_topic2", Image)
 
+        self.base_frame_position = [0, 0, 0]
+
         # Synchronize subscriptions into one callback
         ts = message_filters.TimeSynchronizer([self.image_sub1, self.image_sub2], 1)
         ts.registerCallback(self.callback)
@@ -47,17 +49,18 @@ class target_finder:
         cv2.waitKey(3)
         cv2.imshow("image", self.cv_image1)
 
+        if self.base_frame_position == [0, 0, 0]:
+            base_frame_xzcoords = self.get_base_frame_position(self.cv_image1)
+            base_frame_yzcoords = self.get_base_frame_position(self.cv_image2)
+            self.base_frame_position = [base_frame_xzcoords[0], base_frame_yzcoords[0], base_frame_yzcoords[1]]
+
         complete_target1 = self.threshold_targets(self.cv_image1)
         complete_target2 = self.threshold_targets(self.cv_image2)
+
 
         #cv2.imshow("threshold", complete_target1)
         target_centers1 = self.find_centers(complete_target1)
         target_centers2 = self.find_centers(complete_target2)
-
-        base_frame_xzcoords = self.get_base_frame_position(self.cv_image1)
-        base_frame_yzcoords = self.get_base_frame_position(self.cv_image2)
-
-        base_frame_center = [base_frame_xzcoords[0], base_frame_yzcoords[0], base_frame_yzcoords[1]]
 
     def find_centers(self, complete_target):
         cnts, hierarchy = cv2.findContours(complete_target, cv2.RETR_CCOMP,
