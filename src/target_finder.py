@@ -46,9 +46,17 @@ class target_finder:
 
         cv2.waitKey(3)
         cv2.imshow("image", self.cv_image2)
-        thresholded_image1 = cv2.inRange(self.cv_image2, (70, 100, 130), (120, 150, 160))
-        thresholded_image2 = cv2.inRange(self.cv_image2, (27, 55, 70), (40, 70, 95))
-        cv2.imshow("threshold", thresholded_image1)
+
+        # Threshold for both box and target on light background
+        threshold_objects1 = cv2.inRange(self.cv_image2, (70, 100, 130), (120, 150, 160))
+        # Threshold for target on dark background
+        threshold_target2 = cv2.inRange(self.cv_image2, (27, 55, 70), (40, 70, 95))
+
+        complete_target = threshold_objects1 + threshold_target2
+
+        # Threshold box for when its behind robots
+
+        cv2.imshow("threshold", complete_target)
 
 
 
