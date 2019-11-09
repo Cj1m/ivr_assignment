@@ -90,8 +90,7 @@ class target_finder:
         if rectangle_yz != [0, 0]:
             self.rectangle["y"] = rectangle_yz[0]
 
-        print("rectangle: " + str(self.rectangle))
-        print("sphere: " + str(self.sphere))
+        print("rectangle: " + str(self.rectangle) + " sphere: " + str(self.sphere))
 
 
         #TODO: convert to coords relative to base frame position (in meters)
@@ -104,14 +103,15 @@ class target_finder:
             cropped_target = self.cropTarget(image, center, [32, 32])
             #print("Sphere etemplate shape: " + str(self.sphere_template.shape) + " cropped targerg shape: " + str(cropped_target))
 
-            dist_transform = cv2.distanceTransform(cv2.bitwise_not(cropped_target), cv2.DIST_L2, 0)
+            dist_transformSphere = cv2.distanceTransform(cv2.bitwise_not(self.sphere_template), cv2.DIST_L2, 0)
+            dist_transformRect = cv2.distanceTransform(cv2.bitwise_not(rectangle_template), cv2.DIST_L2, 0)
 
-            rectangle_chamfer_distance = np.sum(dist_transform * rectangle_template)
-            sphere_chamfer_distance = np.sum(dist_transform * self.sphere_template)
+            rectangle_chamfer_distance = np.sum(dist_transformRect * cropped_target)
+            sphere_chamfer_distance = np.sum(dist_transformSphere * cropped_target)
 
             #print("rect dist: " + str(rectangle_chamfer_distance) + "    sphere dist: " + str(sphere_chamfer_distance))
 
-            if rectangle_chamfer_distance == 0:
+            if sphere_chamfer_distance < rectangle_chamfer_distance:
                 sphere = [center[0], center[1]]
             else:
                 rectangle = [center[0], center[1]]
