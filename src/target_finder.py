@@ -35,6 +35,16 @@ class target_finder:
         # Get the time
         self.time_trajectory = rospy.get_time()
 
+        self.rectangle_c1_template = cv2.imread('c1_rectangle_target.png', 1)
+        self.rectangle_c2_template = cv2.imread("c2_rectangle_target.png", 1)
+        self.sphere_template = cv2.imread("sphere_target.png", 1)
+
+        cv2.imshow("image", self.rectangle_c1_template)
+
+        self.rectangle = {"x": 0, "y": 0, "z": 0}
+        self.sphere = {"x": 0, "y": 0, "z": 0}
+
+
 
     # Receive data from camera 1 and camera 2
     def callback(self, data1, data2):
@@ -61,7 +71,61 @@ class target_finder:
         target_centers1 = self.find_centers(complete_target1)
         target_centers2 = self.find_centers(complete_target2)
 
-        #TODO: crop each image center, chamfer match, get full set of coords for each target, convert to coords relative to base frame position (in meters)
+
+        sphere_xz, rectangle_xz = self.get_shape_coordinates(target_centers1, complete_target1)
+        sphere_yz, rectangle_yz = self.get_shape_coordinates(target_centers2, complete_target2)
+
+        if sphere_xz != [0, 0]:
+            self.sphere["x"] = sphere_xz[0]
+            self.sphere["z"] = sphere_xz[1]
+
+        if sphere_yz != [0, 0]:
+            self.sphere["y"] = sphere_yz[0]
+
+        if rectangle_xz != [0, 0]:
+            self.rectangle["x"] = rectangle_xz[0]
+            self.rectangle["z"] = rectangle_xz[1]
+
+        if rectangle_yz != [0, 0]:
+            self.rectangle["y"] = rectangle_yz[0]
+
+        print("rectangle: " + str(self.rectangle))
+        print("sphere: " + str(self.sphere))
+
+
+        #TODO: chamfer match, get full set of coords for each target, convert to coords relative to base frame position (in meters)
+
+    def get_shape_coordinates(self, centers, image):
+        sphere = [0, 0]
+        rectangle = [0, 0]
+        for center in centers:
+            cropped_target = self.cropTarget(image, center, [32, 32])
+
+            ROI_rect = cropped_target[center[1] - self.rectangle_c1_template.shape[0] / 2: (center[1] +
+                                                                                            self.rectangle_c1_template.shape[
+                                                                                                0] / 2) + 1,
+                       center[0] - self.rectangle_c1_template.shape[1] / 2: (center[0] +
+                                                                             self.rectangle_c1_template.shape[
+                                                                                 1] / 2) + 1]
+            ROI_sphere = cropped_target[center[1] - self.sphere_template.shape[0] / 2: (center[1] +
+                                                                                        self.sphere_template.shape[
+                                                                                            0] / 2) + 1,
+                         center[0] - self.sphere_template.shape[1] / 2: (center[0] + self.sphere_template.shape[
+                             1] / 2) + 1]
+
+            dist_rect = cv2.distanceTransform(cv2.bitwise_not(ROI_rect), cv2.DIST_L2, 0)
+            dist_sphere = cv2.distanceTransform(cv2.bitwise_not(ROI_sphere), cv2.DIST_L2, 0)
+
+            if dist_sphere < dist_rect:
+                sphere = [center[0],  center[1]]
+            else:
+                rectangle = [center[0], center[1]]
+
+        return sphere, rectangle
+
+    def cropTarget(self, image, center, shape):
+        return image[center[1] - shape[1] / 2: center[1] + shape[1] / 2,
+               center[0] - shape[0] / 2: center[0] + shape[0] / 2]
 
     def find_centers(self, complete_target):
         cnts, hierarchy = cv2.findContours(complete_target, cv2.RETR_CCOMP,
