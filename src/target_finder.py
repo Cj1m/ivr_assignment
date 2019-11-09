@@ -35,11 +35,11 @@ class target_finder:
         # Get the time
         self.time_trajectory = rospy.get_time()
 
-        self.rectangle_c1_template = cv2.imread('c1_rectangle_target.png', 1)
-        self.rectangle_c2_template = cv2.imread("c2_rectangle_target.png", 1)
-        self.sphere_template = cv2.imread("sphere_target.png", 1)
+        self.rectangle_c1_template = cv2.inRange(cv2.imread('c1_rectangle_target.png', 1), (200, 200, 200), (255, 255, 255))
 
-        cv2.imshow("image", self.rectangle_c1_template)
+        self.rectangle_c2_template = cv2.inRange(cv2.imread('c2_rectangle_target.png', 1), (200, 200, 200), (255, 255, 255))
+        self.sphere_template = cv2.inRange(cv2.imread('sphere_target.png', 1), (200, 200, 200), (255, 255, 255))
+
 
         self.rectangle = {"x": 0, "y": 0, "z": 0}
         self.sphere = {"x": 0, "y": 0, "z": 0}
@@ -71,9 +71,10 @@ class target_finder:
         target_centers1 = self.find_centers(complete_target1)
         target_centers2 = self.find_centers(complete_target2)
 
+        sphere_xz, rectangle_xz = self.get_shape_coordinates(target_centers1, complete_target1, self.rectangle_c1_template)
+        sphere_yz, rectangle_yz = self.get_shape_coordinates(target_centers2, complete_target2, self.rectangle_c2_template)
 
-        sphere_xz, rectangle_xz = self.get_shape_coordinates(target_centers1, complete_target1)
-        sphere_yz, rectangle_yz = self.get_shape_coordinates(target_centers2, complete_target2)
+        #print("shphere : " + str(sphere_xz) + " " + str(sphere_yz))
 
         if sphere_xz != [0, 0]:
             self.sphere["x"] = sphere_xz[0]
@@ -93,31 +94,25 @@ class target_finder:
         print("sphere: " + str(self.sphere))
 
 
-        #TODO: chamfer match, get full set of coords for each target, convert to coords relative to base frame position (in meters)
+        #TODO: convert to coords relative to base frame position (in meters)
 
-    def get_shape_coordinates(self, centers, image):
+    def get_shape_coordinates(self, centers, image, rectangle_template):
         sphere = [0, 0]
         rectangle = [0, 0]
+
         for center in centers:
             cropped_target = self.cropTarget(image, center, [32, 32])
+            #print("Sphere etemplate shape: " + str(self.sphere_template.shape) + " cropped targerg shape: " + str(cropped_target))
 
-            ROI_rect = cropped_target[center[1] - self.rectangle_c1_template.shape[0] / 2: (center[1] +
-                                                                                            self.rectangle_c1_template.shape[
-                                                                                                0] / 2) + 1,
-                       center[0] - self.rectangle_c1_template.shape[1] / 2: (center[0] +
-                                                                             self.rectangle_c1_template.shape[
-                                                                                 1] / 2) + 1]
-            ROI_sphere = cropped_target[center[1] - self.sphere_template.shape[0] / 2: (center[1] +
-                                                                                        self.sphere_template.shape[
-                                                                                            0] / 2) + 1,
-                         center[0] - self.sphere_template.shape[1] / 2: (center[0] + self.sphere_template.shape[
-                             1] / 2) + 1]
+            dist_transform = cv2.distanceTransform(cv2.bitwise_not(cropped_target), cv2.DIST_L2, 0)
 
-            dist_rect = cv2.distanceTransform(cv2.bitwise_not(ROI_rect), cv2.DIST_L2, 0)
-            dist_sphere = cv2.distanceTransform(cv2.bitwise_not(ROI_sphere), cv2.DIST_L2, 0)
+            rectangle_chamfer_distance = np.sum(dist_transform * rectangle_template)
+            sphere_chamfer_distance = np.sum(dist_transform * self.sphere_template)
 
-            if dist_sphere < dist_rect:
-                sphere = [center[0],  center[1]]
+            #print("rect dist: " + str(rectangle_chamfer_distance) + "    sphere dist: " + str(sphere_chamfer_distance))
+
+            if rectangle_chamfer_distance == 0:
+                sphere = [center[0], center[1]]
             else:
                 rectangle = [center[0], center[1]]
 
