@@ -106,6 +106,7 @@ class target_finder:
 
             dist_transform = cv2.distanceTransform(cv2.bitwise_not(cropped_target), cv2.DIST_L2, 0)
 
+            #TODO fix chamfer matching, use template distance transform instead
             rectangle_chamfer_distance = np.sum(dist_transform * rectangle_template)
             sphere_chamfer_distance = np.sum(dist_transform * self.sphere_template)
 
