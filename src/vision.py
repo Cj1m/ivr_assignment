@@ -93,6 +93,7 @@ class vision:
     print(link4_dist_pixels*pixel_in_metres)
 
   def set_coordinates(self, image1_joint, image2_joint, joint_pos):
+
     joint_pos["x"] = image2_joint[0]
     joint_pos["y"] = image1_joint[0]
     # If one camera 1 is obscured then use the other camera
@@ -139,6 +140,26 @@ class vision:
     return math.sqrt(math.pow(point2['x'] - point1['x'], 2) + math.pow(point2['y'] - point1['y'], 2)
                      + math.pow(point2['z'] - point1['z'], 2))
 
+  def rotation_matrix_X(self, point2, v, d):
+    [a,b,c] = d
+    [x1, y1, z1] = v
+    cos_alpha = (z1 * (point2['z'] - c)) / (math.pow(z1, 2) + math.pow(y1, 2))
+    sin_alpha = (point2['y'] - b - y1*cos_alpha) / z1
+    return [[1, 0, 0], [0, cos_alpha, sin_alpha], [0, -sin_alpha, cos_alpha]]
+
+  def rotation_matrix_Y(self, point2, v, d):
+    [a,b,c] = d
+    [x1, y1, z1] = v
+    cos_beta = (z1*(point2['z'] - c) + x1*point2['x'] - x1*a) / (math.pow(x1, 2) + math.pow(z1, 2))
+    sin_beta = -((point2['x'] - a - x1*cos_beta) / z1)
+    return [[cos_beta, 0, -sin_beta], [0, 1, 0], [sin_beta, 0, cos_beta]]
+
+  def rotation_matrix_Z(self, point2, v, d):
+    [a,b,c] = d
+    [x1, y1, z1] = v
+    cos_gamma = (y1*point2['y'] - y1*b + x1*point2['x'] - x1*a) / (math.pow(x1, 2) + math.pow(y1, 2))
+    sin_gamma = (point2['x'] - a - x1*cos_gamma) / y1
+    return [[cos_gamma, sin_gamma, 0], [-sin_gamma, cos_gamma, 0], [0, 0, 1]]
 
 # call the class
 def main(args):
