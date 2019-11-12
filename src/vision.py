@@ -56,8 +56,8 @@ class vision:
     except CvBridgeError as e:
       print(e)
 
-    cv2.imshow("image 1", self.cv_image1)
-    cv2.imshow("image 2", self.cv_image2)
+    #cv2.imshow("image 1", self.cv_image1)
+    #cv2.imshow("image 2", self.cv_image2)
     cv2.waitKey(1)
     #Get each joints co-ordinates from camera 1
     image1_joint1 = self.get_joint_coordinates(self.cv_image1, "yellow")
@@ -84,7 +84,13 @@ class vision:
     link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
     link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
 
-    print(link2_angle)
+    # Get length of each link
+    link1_dist_pixels  = self.distance_between_joints(self.joint1_pos, self.joint23_pos)
+    link3_dist_pixels = self.distance_between_joints(self.joint23_pos, self.joint4_pos)
+    link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
+    pixel_in_metres = 2/link1_dist_pixels
+
+    print(link4_dist_pixels*pixel_in_metres)
 
   def set_coordinates(self, image1_joint, image2_joint, joint_pos):
     joint_pos["x"] = image2_joint[0]
@@ -128,6 +134,10 @@ class vision:
     yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2) % math.pi
 
     return [xz_angle, yz_angle]
+
+  def distance_between_joints(self, point1, point2):
+    return math.sqrt(math.pow(point2['x'] - point1['x'], 2) + math.pow(point2['y'] - point1['y'], 2)
+                     + math.pow(point2['z'] - point1['z'], 2))
 
 
 # call the class
