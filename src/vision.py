@@ -56,8 +56,8 @@ class vision:
     except CvBridgeError as e:
       print(e)
 
-    #cv2.imshow("image 1", self.cv_image1)
-    #cv2.imshow("image 2", self.cv_image2)
+    cv2.imshow("image 1", self.cv_image1)
+    cv2.imshow("image 2", self.cv_image2)
     cv2.waitKey(1)
     #Get each joints co-ordinates from camera 1
     image1_joint1 = self.get_joint_coordinates(self.cv_image1, "yellow")
@@ -89,6 +89,15 @@ class vision:
     link3_dist_pixels = self.distance_between_joints(self.joint23_pos, self.joint4_pos)
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
+
+    #Get rotation matrix
+    v1 = self.get_vector_between_joints(self.joint4_pos, self.joint23_pos)
+    d = self.get_vector_between_joints(self.joint23_pos, self.joint1_pos)
+    #print("v1:" + str(v1))
+    #print("d:" + str(d))
+    print(self.rotation_matrix_X(self.joint4_pos, v1, d))
+    print(self.rotation_matrix_Y(self.joint4_pos, v1, d))
+    print(self.rotation_matrix_Z(self.joint4_pos, v1, d))
 
     print(link4_dist_pixels*pixel_in_metres)
 
@@ -140,6 +149,9 @@ class vision:
     return math.sqrt(math.pow(point2['x'] - point1['x'], 2) + math.pow(point2['y'] - point1['y'], 2)
                      + math.pow(point2['z'] - point1['z'], 2))
 
+  def get_vector_between_joints(self, point1, point2):
+    return [point2['x'] - point1['x'], point2['y'] - point1['y'], point2['z'] - point1['z']]
+
   def rotation_matrix_X(self, point2, v, d):
     [a,b,c] = d
     [x1, y1, z1] = v
@@ -148,15 +160,16 @@ class vision:
     return [[1, 0, 0], [0, cos_alpha, sin_alpha], [0, -sin_alpha, cos_alpha]]
 
   def rotation_matrix_Y(self, point2, v, d):
-    [a,b,c] = d
+    [a, b, c] = d
     [x1, y1, z1] = v
     cos_beta = (z1*(point2['z'] - c) + x1*point2['x'] - x1*a) / (math.pow(x1, 2) + math.pow(z1, 2))
     sin_beta = -((point2['x'] - a - x1*cos_beta) / z1)
     return [[cos_beta, 0, -sin_beta], [0, 1, 0], [sin_beta, 0, cos_beta]]
 
   def rotation_matrix_Z(self, point2, v, d):
-    [a,b,c] = d
+    [a, b, c] = d
     [x1, y1, z1] = v
+
     cos_gamma = (y1*point2['y'] - y1*b + x1*point2['x'] - x1*a) / (math.pow(x1, 2) + math.pow(y1, 2))
     sin_gamma = (point2['x'] - a - x1*cos_gamma) / y1
     return [[cos_gamma, sin_gamma, 0], [-sin_gamma, cos_gamma, 0], [0, 0, 1]]
