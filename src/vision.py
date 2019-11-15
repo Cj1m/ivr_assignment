@@ -85,19 +85,19 @@ class vision:
     link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
 
     # Get length of each link
-    link1_dist_pixels  = self.distance_between_joints(self.joint1_pos, self.joint23_pos)
+    link1_dist_pixels = self.distance_between_joints(self.joint1_pos, self.joint23_pos)
     link3_dist_pixels = self.distance_between_joints(self.joint23_pos, self.joint4_pos)
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
 
     #Get rotation matrix
-    v1 = self.get_vector_between_joints(self.joint4_pos, self.joint23_pos)
-    d = self.get_vector_between_joints(self.joint23_pos, self.joint1_pos)
-    #print("v1:" + str(v1))
-    #print("d:" + str(d))
-    print(self.rotation_matrix_X(self.joint4_pos, v1, d))
-    print(self.rotation_matrix_Y(self.joint4_pos, v1, d))
-    print(self.rotation_matrix_Z(self.joint4_pos, v1, d))
+    v1 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
+    d = self.get_vector_between_joints(self.joint1_pos, self.joint23_pos)
+   # v2 = np.add(v1, d)
+
+    print ("Base Vector: " + str(-d))
+    print ("Vector T: " + str(-v1))
+    print("Rotation matrix: " + str(self.rotation_matrix_X(v1, d)))
 
     print(link4_dist_pixels*pixel_in_metres)
 
@@ -150,14 +150,17 @@ class vision:
                      + math.pow(point2['z'] - point1['z'], 2))
 
   def get_vector_between_joints(self, point1, point2):
-    return [point2['x'] - point1['x'], point2['y'] - point1['y'], point2['z'] - point1['z']]
+    vector = [point2['x'] - point1['x'], point2['y'] - point1['y'], point2['z'] - point1['z']]
+    length = np.linalg.norm(vector)
+    normal_vector = vector / length
+    return normal_vector
 
-  def rotation_matrix_X(self, point2, v, d):
-    [a,b,c] = d
-    [x1, y1, z1] = v
-    cos_alpha = (z1 * (point2['z'] - c)) / (math.pow(z1, 2) + math.pow(y1, 2))
-    sin_alpha = (point2['y'] - b - y1*cos_alpha) / z1
-    return [[1, 0, 0], [0, cos_alpha, sin_alpha], [0, -sin_alpha, cos_alpha]]
+  def rotation_matrix_X(self, target, v):
+    [tx, ty, tz] = -target
+    [v1, v2, v3] = -v
+    cos_alpha = (ty*v[1] + tz*v[2]) / (math.pow(v2, 2) - math.pow(v3, 2))
+    sin_alpha = ((v2*cos_alpha) - ty) / v3
+    return [[1, 0, 0], [0, cos_alpha, -sin_alpha], [0, sin_alpha, cos_alpha]]
 
   def rotation_matrix_Y(self, point2, v, d):
     [a, b, c] = d
