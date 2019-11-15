@@ -93,11 +93,15 @@ class vision:
     #Get rotation matrix
     v1 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
     d = self.get_vector_between_joints(self.joint1_pos, self.joint23_pos)
-   # v2 = np.add(v1, d)
+
+    v2 = self.get_vector_between_joints(self.joint4_pos, self.jointEE_pos)
+    d2 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
 
     print ("Base Vector: " + str(-d))
     print ("Vector T: " + str(-v1))
-    print("Rotation matrix: " + str(self.rotation_matrix_X(v1, d)))
+    print("Rotation matrix X: " + str(self.rotation_matrix_X(v1, d)))
+    print("Rotation matrix Y: " + str(self.rotation_matrix_Y(v1, d)))
+    print("Rotation matrix Z: " + str(self.rotation_matrix_Z(v2, d2)))
 
     print(link4_dist_pixels*pixel_in_metres)
 
@@ -162,20 +166,20 @@ class vision:
     sin_alpha = ((v2*cos_alpha) - ty) / v3
     return [[1, 0, 0], [0, cos_alpha, -sin_alpha], [0, sin_alpha, cos_alpha]]
 
-  def rotation_matrix_Y(self, point2, v, d):
-    [a, b, c] = d
-    [x1, y1, z1] = v
-    cos_beta = (z1*(point2['z'] - c) + x1*point2['x'] - x1*a) / (math.pow(x1, 2) + math.pow(z1, 2))
-    sin_beta = -((point2['x'] - a - x1*cos_beta) / z1)
-    return [[cos_beta, 0, -sin_beta], [0, 1, 0], [sin_beta, 0, cos_beta]]
+  def rotation_matrix_Y(self, target, v):
+    [tx, ty, tz] = -target
+    [v1, v2, v3] = -v
+    cos_beta = (v1*tx + v3*tz) / (math.pow(v1, 2) + math.pow(v3, 2))
+    sin_beta = (tx-v1*cos_beta) / v3
+    return [[cos_beta, 0, sin_beta], [0, 1, 0], [-sin_beta, 0, cos_beta]]
 
-  def rotation_matrix_Z(self, point2, v, d):
-    [a, b, c] = d
-    [x1, y1, z1] = v
-
-    cos_gamma = (y1*point2['y'] - y1*b + x1*point2['x'] - x1*a) / (math.pow(x1, 2) + math.pow(y1, 2))
-    sin_gamma = (point2['x'] - a - x1*cos_gamma) / y1
-    return [[cos_gamma, sin_gamma, 0], [-sin_gamma, cos_gamma, 0], [0, 0, 1]]
+  def rotation_matrix_Z(self, target, v):
+    [tx, ty, tz] = -target
+    [v1, v2, v3] = -v
+    print ( v2*ty)
+    cos_gamma = (v1*tx + v2*ty) / (math.pow(v1, 2) + math.pow(v2, 2))
+    sin_gamma = (v1*cos_gamma - tx) / v2
+    return [[cos_gamma, -sin_gamma, 0], [sin_gamma, cos_gamma, 0], [0, 0, 1]]
 
 # call the class
 def main(args):
