@@ -94,11 +94,11 @@ class vision:
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
 
-    print ("Actual: " + str(self.joint23_pos))
-    print ("Forward Kinematics: " + str(self.get_next_point_pos(self.joint1_pos, link1_dist_pixels, link1_angle)))
-
-    print("Actual: " + str(self.joint4_pos))
-    print("Forward Kinematics: " + str(self.get_next_point_pos(self.joint23_pos, link3_dist_pixels, link2_angle)))
+    print("Actual: " + str(self.jointEE_pos))
+    print(self.get_EE_with_forward_kinematics([link1_angle, link2_angle, link3_angle],
+                                              [link1_dist_pixels, link3_dist_pixels, link4_dist_pixels],
+                                              [self.joint1_pos['x'], self.joint1_pos['y'], self.joint1_pos['z']]
+                                              ))
     # #Get rotation matrix
     # v1 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
     # d = self.get_vector_between_joints(self.joint1_pos, self.joint23_pos)
@@ -120,12 +120,21 @@ class vision:
     #
     # print(link4_dist_pixels*pixel_in_metres)
 
+  def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
+    kinematics_joint23_pos = self.get_next_point_pos(joint1_pos, link_distances[0], link_angles[0])
+
+    kinematics_joint4_pos = self.get_next_point_pos(kinematics_joint23_pos, link_distances[1], link_angles[1])
+    kinematics_jointEE_pos = self.get_next_point_pos(kinematics_joint4_pos, link_distances[2], link_angles[2])
+
+    return kinematics_jointEE_pos
+
   def get_next_point_pos(self, curPos, linkLength, angle):
-      print (linkLength)
+      #print (linkLength)
       x = math.sin(angle[0]) * math.cos(angle[1]) * linkLength
       y = math.sin(angle[1]) * linkLength
       z = math.cos(angle[0]) * math.cos(angle[1]) * linkLength
-      return [x + curPos['x'], y + curPos['y'], z + curPos['z']]
+
+      return [x + curPos[0], y + curPos[1], curPos[2] - z]
 
   def set_coordinates(self, image1_joint, image2_joint, joint_pos):
 
