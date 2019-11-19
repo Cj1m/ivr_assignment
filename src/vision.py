@@ -121,6 +121,7 @@ class vision:
     # print(link4_dist_pixels*pixel_in_metres)
 
   def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
+    print(link_angles)
     kinematics_joint23_pos = self.get_next_point_pos(joint1_pos, link_distances[0], link_angles[0])
 
     kinematics_joint4_pos = self.get_next_point_pos(kinematics_joint23_pos, link_distances[1], link_angles[1])
@@ -134,7 +135,7 @@ class vision:
       y = math.sin(angle[1]) * linkLength
       z = math.cos(angle[0]) * math.cos(angle[1]) * linkLength
 
-      return [x + curPos[0], y + curPos[1], curPos[2] - z]
+      return [curPos[0] + x, curPos[1] + y, curPos[2] - z]
 
   def set_coordinates(self, image1_joint, image2_joint, joint_pos):
 
@@ -175,8 +176,8 @@ class vision:
   # Returns the angle between two points in a 2D plane about a horizontal plane
   def get_angle_between_points(self, point1, point2):
 
-    xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2) % math.pi
-    yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2) % math.pi
+    xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2)
+    yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2)
 
     return [xz_angle, yz_angle]
 
