@@ -19,11 +19,12 @@ class vision:
   def __init__(self):
     # initialize the node named image_processing
     rospy.init_node('image_processing2', anonymous=True)
+    #Create new topic for publishing rotation matrices to
+    self.rot_pub = rospy.Publisher("rot_pub", Float64MultiArray, queue_size = 1)
     #Subscribe to camera 1 output processed by image1.py
     self.image_sub1 = message_filters.Subscriber("/image_topic1",Image)
     #Subscribe to camera 2 output processed by image2.py
     self.image_sub2 = message_filters.Subscriber("/image_topic2",Image)
-
     # Synchronize subscriptions into one callback
     ts = message_filters.TimeSynchronizer([self.image_sub1, self.image_sub2], 1)
     ts.registerCallback(self.callback)
@@ -83,6 +84,9 @@ class vision:
 
     link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
     link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
+    link3_angle = self.get_angle_between_points(self.joint4_pos, self.jointEE_pos)
+
+    print (link1_angle)
 
     # Get length of each link
     link1_dist_pixels = self.distance_between_joints(self.joint1_pos, self.joint23_pos)
@@ -90,20 +94,38 @@ class vision:
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
 
-    #Get rotation matrix
-    v1 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
-    d = self.get_vector_between_joints(self.joint1_pos, self.joint23_pos)
+    print ("Actual: " + str(self.joint23_pos))
+    print ("Forward Kinematics: " + str(self.get_next_point_pos(self.joint1_pos, link1_dist_pixels, link1_angle)))
 
-    v2 = self.get_vector_between_joints(self.joint4_pos, self.jointEE_pos)
-    d2 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
+    print("Actual: " + str(self.joint4_pos))
+    print("Forward Kinematics: " + str(self.get_next_point_pos(self.joint23_pos, link3_dist_pixels, link2_angle)))
+    # #Get rotation matrix
+    # v1 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
+    # d = self.get_vector_between_joints(self.joint1_pos, self.joint23_pos)
+    #
+    # joint2_rot_matrix = self.rotation_matrix_X(v1, d);
 
-    print ("Base Vector: " + str(-d))
-    print ("Vector T: " + str(-v1))
-    print("Rotation matrix X: " + str(self.rotation_matrix_X(v1, d)))
-    print("Rotation matrix Y: " + str(self.rotation_matrix_Y(v1, d)))
-    print("Rotation matrix Z: " + str(self.rotation_matrix_Z(v2, d2)))
+    # Publish the results
+    # try:
+    #   self.rot_pub.publish(np.array(joint2_rot_matrix).flatten(), "bgr8")
+    # except CvBridgeError as e:
+    #   print(e)
 
-    print(link4_dist_pixels*pixel_in_metres)
+    # print (type(self.rotation_matrix_X(v1, d)))
+    # print ("Base Vector: " + str(-d))
+    # print ("Vector T: " + str(-v1))
+    # print("Rotation matrix X: " + str(self.rotation_matrix_X(v1, d)))
+    # print("Rotation matrix Y: " + str(self.rotation_matrix_Y(v1, d)))
+    # print("Rotation matrix Z: " + str(self.rotation_matrix_Z(v1, d)))
+    #
+    # print(link4_dist_pixels*pixel_in_metres)
+
+  def get_next_point_pos(self, curPos, linkLength, angle):
+      print (linkLength)
+      x = math.sin(angle[0]) * math.cos(angle[1]) * linkLength
+      y = math.sin(angle[1]) * linkLength
+      z = math.cos(angle[0]) * math.cos(angle[1]) * linkLength
+      return [x + curPos['x'], y + curPos['y'], z + curPos['z']]
 
   def set_coordinates(self, image1_joint, image2_joint, joint_pos):
 
@@ -176,9 +198,8 @@ class vision:
   def rotation_matrix_Z(self, target, v):
     [tx, ty, tz] = -target
     [v1, v2, v3] = -v
-    print ( v2*ty)
     cos_gamma = (v1*tx + v2*ty) / (math.pow(v1, 2) + math.pow(v2, 2))
-    sin_gamma = (v1*cos_gamma - tx) / v2
+    sin_gamma = (ty - v2*cos_gamma) / v1
     return [[cos_gamma, -sin_gamma, 0], [sin_gamma, cos_gamma, 0], [0, 0, 1]]
 
 # call the class
