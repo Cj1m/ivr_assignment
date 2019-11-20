@@ -18,11 +18,15 @@ class target_finder:
     # Defines publisher and subscriber
     def __init__(self):
         # initialize the node named image_processing
-        rospy.init_node('image_processing2', anonymous=True)
+        rospy.init_node('target_finder', anonymous=True)
         # Subscribe to camera 1 output processed by image1.py
         self.image_sub1 = message_filters.Subscriber("/image_topic1", Image)
         # Subscribe to camera 2 output processed by image2.py
         self.image_sub2 = message_filters.Subscriber("/image_topic2", Image)
+
+        self.target_x_position_pub = rospy.Publisher("target_finder/x_position_estimate", Float64, queue_size=10)
+        self.target_y_position_pub = rospy.Publisher("target_finder/y_position_estimate", Float64, queue_size=10)
+        self.target_z_position_pub = rospy.Publisher("target_finder/z_position_estimate", Float64, queue_size=10)
 
         self.base_frame_position = [0, 0, 0]
 
@@ -57,7 +61,7 @@ class target_finder:
             print(e)
 
         cv2.waitKey(3)
-        cv2.imshow("image", self.cv_image1)
+        #cv2.imshow("image", self.cv_image1)
 
         if self.base_frame_position == [0, 0, 0]:
             base_frame_xzcoords = self.get_base_frame_position(self.cv_image1)
@@ -76,12 +80,15 @@ class target_finder:
 
         #print("shphere : " + str(sphere_xz) + " " + str(sphere_yz))
 
+        joint1_pos = {'y': 399, 'x': 399, 'z': 532}
+        pixels_in_meters = 0.0392156862745
+
         if sphere_xz != [0, 0]:
-            self.sphere["x"] = sphere_xz[0]
-            self.sphere["z"] = sphere_xz[1]
+            self.sphere["x"] = (sphere_xz[0] - joint1_pos['x']) * pixels_in_meters
+            self.sphere["z"] = (joint1_pos['z'] - sphere_xz[1]) * pixels_in_meters
 
         if sphere_yz != [0, 0]:
-            self.sphere["y"] = sphere_yz[0]
+            self.sphere["y"] = (sphere_yz[0]- joint1_pos['y']) * pixels_in_meters
 
         if rectangle_xz != [0, 0]:
             self.rectangle["x"] = rectangle_xz[0]
@@ -90,7 +97,11 @@ class target_finder:
         if rectangle_yz != [0, 0]:
             self.rectangle["y"] = rectangle_yz[0]
 
-        print("rectangle: " + str(self.rectangle) + " sphere: " + str(self.sphere))
+        #print("rectangle: " + str(self.rectangle) + " sphere: " + str(self.sphere))
+
+        self.target_z_position_pub.publish(self.sphere['z'])
+        self.target_y_position_pub.publish(self.sphere['y'])
+        self.target_x_position_pub.publish(self.sphere['x'])
 
 
         #TODO: convert to coords relative to base frame position (in meters)
