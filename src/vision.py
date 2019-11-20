@@ -145,11 +145,10 @@ class vision:
     closest_dist = 10000000000000000000000000
     EEVector = [EE['x'], EE['y'], EE['z']]
     for cur_z_degrees in range(0, 360):
-      cur_z = 1
       cur_z = cur_z_degrees*(math.pi/180)
       a01 = np.matrix([[math.cos(cur_z), -math.sin(cur_z), 0, 0],
                        [math.sin(cur_z), math.cos(cur_z), 0, 0],
-                       [0, 0, 0, 0],
+                       [0, 0, 1, 0],
                        [0, 0, 0, 1]])
       estimated_EE = np.matmul(np.matmul(np.matmul(np.matmul(a01, a12), a23), a34), p4)
       estimated_EE = ([estimated_EE[0,0], estimated_EE[0,1], estimated_EE[0,2]])
