@@ -57,8 +57,8 @@ class vision:
     except CvBridgeError as e:
       print(e)
 
-    cv2.imshow("image 1", self.cv_image1)
-    cv2.imshow("image 2", self.cv_image2)
+    # cv2.imshow("image 1", self.cv_image1)
+    # cv2.imshow("image 2", self.cv_image2)
     cv2.waitKey(1)
     #Get each joints co-ordinates from camera 1
     image1_joint1 = self.get_joint_coordinates(self.cv_image1, "yellow")
@@ -94,11 +94,31 @@ class vision:
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
 
-    print("Actual: " + str(self.jointEE_pos))
+    print("Actual EE: " + str(self.jointEE_pos))
+    print("Actual 23: " + str(self.joint23_pos))
+    print("Actual 4: " + str(self.joint4_pos))
+
     print(self.get_EE_with_forward_kinematics([link1_angle, link2_angle, link3_angle],
                                               [link1_dist_pixels, link3_dist_pixels, link4_dist_pixels],
                                               [self.joint1_pos['x'], self.joint1_pos['y'], self.joint1_pos['z']]
                                               ))
+
+
+    a12 = np.matrix([[1, 0, 0, 0],
+                     [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1]), 0],
+                     [0, math.sin(link2_angle[1]), math.cos(link2_angle[1]), link1_dist_pixels],
+                     [0, 0, 0, 1]])
+    a23 = np.matrix([[math.cos(link2_angle[0]), 0, math.sin(link2_angle[0]), 0],
+                    [0, 1, 0, 0],
+                    [-math.sin(link2_angle[0]), 0, math.cos(link2_angle[0]), 0],
+                    [0, 0, 0, 1]])
+
+    a34 = np.matrix([[1, 0, 0, 0],
+                    [0, math.cos(link3_angle[1]), -math.sin(link3_angle[1]), 0],
+                    [0, math.sin(link3_angle[1]), math.cos(link3_angle[1]), link3_dist_pixels],
+                    [0, 0, 0, 1]])
+    p4 = [0, 0, link4_dist_pixels, 1]
+    print(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4))
     # #Get rotation matrix
     # v1 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
     # d = self.get_vector_between_joints(self.joint1_pos, self.joint23_pos)
@@ -120,11 +140,33 @@ class vision:
     #
     # print(link4_dist_pixels*pixel_in_metres)
 
+  def find_Z_angle(self, EE, a12, a23, a34, p4):
+    closest_angle = 400000000000000000000000000
+    closest_dist = 10000000000000000000000000
+    EEVector = [EE['x'], EE['y'], EE['z']]
+    for cur_z_degrees in range(0, 360):
+      cur_z = 1
+      cur_z = cur_z_degrees*(math.pi/180)
+      a01 = np.matrix([[math.cos(cur_z), -math.sin(cur_z), 0, 0],
+                       [math.sin(cur_z), math.cos(cur_z), 0, 0],
+                       [0, 0, 0, 0],
+                       [0, 0, 0, 1]])
+      estimated_EE = np.matmul(np.matmul(np.matmul(np.matmul(a01, a12), a23), a34), p4)
+      estimated_EE = ([estimated_EE[0,0], estimated_EE[0,1], estimated_EE[0,2]])
+      print (estimated_EE)
+      if (np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(EEVector))) < closest_dist):
+        closest_angle = cur_z_degrees
+        closest_dist = np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(EEVector)))
+
+    return closest_angle
+
+
   def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
     print(link_angles)
     kinematics_joint23_pos = self.get_next_point_pos(joint1_pos, link_distances[0], link_angles[0])
-
+    print ("Estimated Joint23 Pos; " + str(kinematics_joint23_pos))
     kinematics_joint4_pos = self.get_next_point_pos(kinematics_joint23_pos, link_distances[1], link_angles[1])
+    print ("Estimated Joint4 Pos; " + str(kinematics_joint4_pos))
     kinematics_jointEE_pos = self.get_next_point_pos(kinematics_joint4_pos, link_distances[2], link_angles[2])
 
     return kinematics_jointEE_pos
