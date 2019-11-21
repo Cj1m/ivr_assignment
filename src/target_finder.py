@@ -6,7 +6,7 @@ import rospy
 import cv2
 import math
 import numpy as np
-from std_msgs.msg import String
+from std_msgs.msg import String, Header
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
@@ -107,10 +107,18 @@ class target_finder:
 
         #print("rectangle: " + str(self.rectangle) + " sphere: " + str(self.sphere))
             # Publish the results
+
+        sphere_x = Float64()
+        sphere_x.data = self.sphere['x']
+        sphere_y = Float64()
+        sphere_y.data = self.sphere['y']
+        sphere_z = Float64()
+        sphere_z.data = self.sphere['z']
+
         try:
-            self.target_z_position_pub.publish(self.sphere['z'])
-            self.target_y_position_pub.publish(self.sphere['y'])
-            self.target_x_position_pub.publish(self.sphere['x'])
+            self.target_z_position_pub.publish(sphere_z)
+            self.target_y_position_pub.publish(sphere_y)
+            self.target_x_position_pub.publish(sphere_x)
         except CvBridgeError as e:
             print(e)
 

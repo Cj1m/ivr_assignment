@@ -27,6 +27,9 @@ class vision:
     self.image_sub1 = message_filters.Subscriber("/image_topic1",Image)
     #Subscribe to camera 2 output processed by image2.py
     self.image_sub2 = message_filters.Subscriber("/image_topic2",Image)
+    self.target_x_sub = rospy.Subscriber("/target_finder/x_position_estimate", Float64, self.update_target_x)
+    self.target_y_sub = rospy.Subscriber("/target_finder/y_position_estimate", Float64, self.update_target_y)
+    self.target_z_sub = rospy.Subscriber("/target_finder/z_position_estimate", Float64, self.update_target_z)
     # Synchronize subscriptions into one callback
     ts = message_filters.TimeSynchronizer([self.image_sub1, self.image_sub2], 1)
     ts.registerCallback(self.callback)
@@ -35,6 +38,7 @@ class vision:
     self.bridge = CvBridge()
     #Get the time
     self.time_trajectory = rospy.get_time()
+    self.time_previous_step = np.array([rospy.get_time()], dtype='float64')
     #Joint 1 co-ordinates
     self.joint1_pos = {"x": 0, "y" : 0, "z": 0}
     # Joint 23 co-ordinates
@@ -48,8 +52,25 @@ class vision:
     #Colour lower threshold disctionary
     self.lower_threshold = {'yellow': (0,10,10), 'blue' : (10, 0, 0), 'green' :  (0, 10, 0), 'red': (0, 0, 10) }
 
+    self.target_position = [0,0,0]
 
-  # Receive data from camera 1 and camera 2
+    self.time_trajectory = rospy.get_time()
+    # initialize errors
+    self.time_previous_step = np.array([rospy.get_time()], dtype='float64')
+    self.error = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
+    self.error_d = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
+
+
+  def update_target_x(self, data):
+      self.target_position[0] = data.data
+
+  def update_target_y(self, data):
+      self.target_position[1] = data.data
+
+  def update_target_z(self, data):
+      self.target_position[2] = data.data
+
+    # Receive data from camera 1 and camera 2
   def callback(self, data1, data2):
     # Receive image 1
 
@@ -61,6 +82,9 @@ class vision:
 
     # cv2.imshow("image 1", self.cv_image1)
     # cv2.imshow("image 2", self.cv_image2)
+    #print(target_x)
+    #self.target_trajectory = [target_x, target_y, target_z]
+
     cv2.waitKey(1)
     #Get each joints co-ordinates from camera 1
     image1_joint1 = self.get_joint_coordinates(self.cv_image1, "yellow")
@@ -181,10 +205,10 @@ class vision:
 
     x = MatMul(MatMul(MatMul(MatMul(a01SymPy, a12SymPy), a23SymPy), a34SymPy), p4)
     xx = a01SymPy * a12SymPy * a23SymPy * a34SymPy * p4
-    pprint(xx)
-    print ([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]])
-    pprint (self.get_jacobian([0, 0, 0, 0], xx))
-
+    #pprint(xx)
+    #print ([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]])
+    #pprint (self.get_jacobian([0, 0, 0, 0], xx))
+    pprint(self.get_PID_desired_angles(self.get_jacobian([0, 0, 0, 0], xx), [0,0,0,0]))
 
   """Algorithm works when accurate angle measurements for joints 2,3,4 are used"""
   def find_Z_angle(self, EE, a12, a23, a34, p4):
@@ -214,6 +238,43 @@ class vision:
   def get_jacobian(self, joint_angles, forward_kinematics):
     t1_val, t2_val, t3_val, t4_val = joint_angles
     return forward_kinematics.jacobian([self.alpha, self.beta, self.gamma, self.phi]).subs([(self.alpha, t1_val), (self.beta, t2_val), (self.gamma, t3_val), (self.phi, t4_val)])
+
+  def get_PID_desired_angles(self, J, joint_angles):
+    J = np.array(J).astype(np.float64)
+
+    # P gain
+    K_p = np.array([[10, 0, 0, 0], [0, 10, 0, 0], [0, 0, 10, 0], [0, 0, 0, 10]])
+    # D gain
+    K_d = np.array([[0.1, 0, 0, 0], [0, 0.1, 0, 0], [0, 0, 0.1, 0], [0, 0, 0, 0.1]])
+    # estimate time step
+    cur_time = np.array([rospy.get_time()])
+    dt = cur_time - self.time_previous_step
+    self.time_previous_step = cur_time
+    # robot end-effector position
+    pos = [self.jointEE_pos['x'], self.jointEE_pos['y'], self.jointEE_pos['z']]
+    # desired trajectory
+    pos_d = self.target_position
+    # estimate derivative of error
+    self.error_d = ((np.subtract(pos_d, pos)) - self.error) / dt
+    # estimate error
+    self.error = np.subtract(pos_d, pos)
+    print (np.dot(K_p, self.error.transpose()))
+    q = joint_angles  # estimate initial value of joints'
+    J_inv = np.linalg.pinv(J)  # calculating the psudeo inverse of Jacobian
+    print (J_inv)
+    dq_d = np.dot(J_inv, (np.dot(K_d, np.add(self.error_d.transpose(), np.dot(K_p, self.error.transpose())))))  # control input (angular velocity of joints)
+    q_d = q + (dt * dq_d)  # control input (angular position of joints)
+    return q_d
+
+  # Define a circular trajectory
+  def trajectory(self):
+    # get current time
+    cur_time = np.array([rospy.get_time() - self.time_trajectory])
+    x_d = float(6 * np.cos(cur_time * np.pi / 100))
+    y_d = float(6 + np.absolute(1.5 * np.sin(cur_time * np.pi / 100)))
+    z_d = float(6 )
+    return np.array([x_d, y_d])
+
 
   def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
     print(link_angles)
