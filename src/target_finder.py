@@ -44,7 +44,6 @@ class target_finder:
         self.rectangle_c2_template = cv2.inRange(cv2.imread('c2_rectangle_target.png', 1), (200, 200, 200), (255, 255, 255))
         self.sphere_template = cv2.inRange(cv2.imread('sphere_target.png', 1), (200, 200, 200), (255, 255, 255))
 
-
         self.rectangle = {"x": 0, "y": 0, "z": 0}
         self.sphere = {"x": 0, "y": 0, "z": 0}
 
@@ -84,12 +83,11 @@ class target_finder:
         pixels_in_meters = 0.0392156862745
 
         if sphere_xz != [0, 0]:
-            self.sphere["x"] = (sphere_xz[0] - joint1_pos['x']) * pixels_in_meters
-            self.sphere["z"] = (joint1_pos['z'] - sphere_xz[1]) * pixels_in_meters
+            self.sphere["x"] = (sphere_xz[0] - self.base_frame_position[0]) * pixels_in_meters
+            self.sphere["z"] = (self.base_frame_position[2] - sphere_xz[1]) * pixels_in_meters
 
-        if sphere_yz != [0, 0]:
-            self.sphere["y"] = (sphere_yz[0]- joint1_pos['y']) * pixels_in_meters
-
+        if sphere_yz[0] > 0:
+            self.sphere["y"] = (sphere_yz[0]- self.base_frame_position[1]) * pixels_in_meters
         if rectangle_xz != [0, 0]:
             self.rectangle["x"] = rectangle_xz[0]
             self.rectangle["z"] = rectangle_xz[1]
@@ -103,6 +101,8 @@ class target_finder:
         self.target_y_position_pub.publish(self.sphere['y'])
         self.target_x_position_pub.publish(self.sphere['x'])
 
+
+        print (self.sphere)
 
         #TODO: convert to coords relative to base frame position (in meters)
 

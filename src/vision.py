@@ -84,7 +84,7 @@ class vision:
 
     link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
     link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
-    link3_angle = np.subtract(self.get_angle_between_points(self.joint4_pos, self.jointEE_pos),link2_angle)
+    link3_angle = np.subtract(self.get_angle_between_points(self.joint4_pos, self.jointEE_pos), link2_angle)
 
     print (link1_angle)
 
@@ -124,10 +124,10 @@ class vision:
                     [0, math.sin(link3_angle[1]), math.cos(link3_angle[1]), link3_dist_pixels],
                     [0, 0, 0, 1]])
     p4 = [0, 0, link4_dist_pixels, 1]
-    print("Link 1 angle: " + str(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)))
-    print("Link 2 angle: " + str(link2_angle[1]))
-    print("Link 3 angle: " + str(link2_angle[0]))
-    print("Link 4 angle: " + str(link3_angle[1]))
+    # print("Link 1 angle: " + str(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)))
+    # print("Link 2 angle: " + str(link2_angle[1]))
+    # print("Link 3 angle: " + str(link2_angle[0]))
+    # print("Link 4 angle: " + str(link3_angle[1]))
 
 
     # #Get rotation matrix
@@ -231,7 +231,7 @@ class vision:
     xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2)
     yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2)
 
-    return [xz_angle, -1*yz_angle]
+    return [xz_angle, yz_angle]
 
   def distance_between_joints(self, point1, point2):
     return math.sqrt(math.pow(point2['x'] - point1['x'], 2) + math.pow(point2['y'] - point1['y'], 2)
