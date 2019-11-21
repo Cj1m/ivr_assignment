@@ -106,10 +106,14 @@ class target_finder:
             self.rectangle["y"] = rectangle_yz[0]
 
         #print("rectangle: " + str(self.rectangle) + " sphere: " + str(self.sphere))
+            # Publish the results
+        try:
+            self.target_z_position_pub.publish(self.sphere['z'])
+            self.target_y_position_pub.publish(self.sphere['y'])
+            self.target_x_position_pub.publish(self.sphere['x'])
+        except CvBridgeError as e:
+            print(e)
 
-        self.target_z_position_pub.publish(self.sphere['z'])
-        self.target_y_position_pub.publish(self.sphere['y'])
-        self.target_x_position_pub.publish(self.sphere['x'])
 
 
         #print (self.sphere)
