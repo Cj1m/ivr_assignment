@@ -11,9 +11,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
-from sympy import *
-from mpmath import *
-from sympy.abc import x,y,z,w
+from sympy import sin, cos, Matrix, symbols, MatMul, pprint
 import message_filters
 
 
@@ -136,7 +134,7 @@ class vision:
     z=link3_angle[1]
     """
 
-    x, y, z, w = symbols('x y z w')
+    self.alpha, self.beta, self.gamma, self.phi = symbols('alpha beta gamma phi')
 
     rot_2 = [[1, 0, 0],
                      [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1])],
@@ -146,76 +144,47 @@ class vision:
                     [-math.sin(link2_angle[0]), 0, math.cos(link2_angle[0])]]
     #print(np.matmul(rot_2, rot_3))
     a12 = np.matrix([[1, 0, 0, 0],
-                     [0, math.cos(x), -math.sin(x), 0],
-                     [0, math.sin(x), math.cos(x), link1_dist_pixels*pixel_in_metres],
+                     [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1]), 0],
+                     [0, math.sin(link2_angle[1]), math.cos(link2_angle[1]), link1_dist_pixels*pixel_in_metres],
                      [0, 0, 0, 1]])
-    a23 = np.matrix([[math.cos(y), 0, math.sin(y), 0],
+    a23 = np.matrix([[math.cos(link2_angle[0]), 0, math.sin(link2_angle[0]), 0],
                     [0, 1, 0, 0],
-                    [-math.sin(y), 0, math.cos(y), 0],
+                    [-math.sin(link2_angle[0]), 0, math.cos(link2_angle[0]), 0],
                     [0, 0, 0, 1]])
 
     a34 = np.matrix([[1, 0, 0, 0],
-                    [0, math.cos(z), -math.sin(z), 0],
-                    [0, math.sin(z), math.cos(z), link3_dist_pixels*pixel_in_metres],
+                    [0, math.cos(link3_angle[1]), -math.sin(link3_angle[1]), 0],
+                    [0, math.sin(link3_angle[1]), math.cos(link3_angle[1]), link3_dist_pixels*pixel_in_metres],
                     [0, 0, 0, 1]])
-    a12 = Matrix([[1, 0, 0, 0],
-                  [0, math.cos(x), -math.sin(x), 0],
-                  [0, math.sin(x), math.cos(x), 2],
-                  [0, 0, 0, 1]])
-    a23 = Matrix([[math.cos(y), 0, math.sin(y), 0],
-                  [0, 1, 0, 0],
-                  [-math.sin(y), 0, math.cos(y), 0],
-                  [0, 0, 0, 1]])
 
-    a34 = Matrix([[1, 0, 0, 0],
-                  [0, math.cos(z), -math.sin(z), 0],
-                  [0, math.sin(z), math.cos(z), 3],
-                  [0, 0, 0, 1]])
     p4 = [0, 0, 2, 1]
     link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
 
-    a01 = Matrix([[math.cos(w), -math.sin(w), 0, 0],
-                  [math.sin(w), math.cos(w), 0, 0],
+    a12SymPy = Matrix([[1, 0, 0, 0],
+                  [0, cos(self.alpha), -sin(self.alpha), 0],
+                  [0, sin(self.alpha), cos(self.alpha), 2],
+                  [0, 0, 0, 1]])
+    a23SymPy = Matrix([[cos(self.beta), 0, sin(self.beta), 0],
+                  [0, 1, 0, 0],
+                  [-sin(self.beta), 0, cos(self.beta), 0],
+                  [0, 0, 0, 1]])
+    a34SymPy = Matrix([[1, 0, 0, 0],
+                  [0, cos(self.gamma), -sin(self.gamma), 0],
+                  [0, sin(self.gamma), cos(self.gamma), 3],
+                  [0, 0, 0, 1]])
+    a01SymPy = Matrix([[cos(self.phi), -sin(self.phi), 0, 0],
+                  [sin(self.phi), cos(self.phi), 0, 0],
                   [0, 0, 1, 0],
                   [0, 0, 0, 1]])
     p4 = Matrix([0, 0, link4_dist_pixels*pixel_in_metres, 1])
-    link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
 
-    a01 = np.matrix([[math.cos(w), -math.sin(w), 0, 0],
-                     [math.sin(w), math.cos(w), 0, 0],
-                     [0, 0, 1, 0],
-                     [0, 0, 0, 1]])
 
-    x = np.matmul(np.matmul(np.matmul(np.matmul(a01, a12), a23), a34), p4)
-    print (x)
+    x = MatMul(MatMul(MatMul(MatMul(a01SymPy, a12SymPy), a23SymPy), a34SymPy), p4)
+    xx = a01SymPy * a12SymPy * a23SymPy * a34SymPy * p4
+    pprint(xx)
     print ([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]])
-    print (self.get_jacobian([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]], x))
-    # print("Link 1 angle: " + str(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)))
-    # print("Link 2 angle: " + str(link2_angle[1]))
-    # print("Link 3 angle: " + str(link2_angle[0]))
-    # print("Link 4 angle: " + str(link3_angle[1]))
+    pprint (self.get_jacobian([0, 0, 0, 0], xx))
 
-
-    # #Get rotation matrix
-    # v1 = self.get_vector_between_joints(self.joint23_pos, self.joint4_pos)
-    # d = self.get_vector_between_joints(self.joint1_pos, self.joint23_pos)
-    #
-    # joint2_rot_matrix = self.rotation_matrix_X(v1, d);
-
-    # Publish the results
-    # try:
-    #   self.rot_pub.publish(np.array(joint2_rot_matrix).flatten(), "bgr8")
-    # except CvBridgeError as e:
-    #   print(e)
-
-    # print (type(self.rotation_matrix_X(v1, d)))
-    # print ("Base Vector: " + str(-d))
-    # print ("Vector T: " + str(-v1))
-    # print("Rotation matrix X: " + str(self.rotation_matrix_X(v1, d)))
-    # print("Rotation matrix Y: " + str(self.rotation_matrix_Y(v1, d)))
-    # print("Rotation matrix Z: " + str(self.rotation_matrix_Z(v1, d)))
-    #
-    # print(link4_dist_pixels*pixel_in_metres)
 
   """Algorithm works when accurate angle measurements for joints 2,3,4 are used"""
   def find_Z_angle(self, EE, a12, a23, a34, p4):
@@ -242,10 +211,9 @@ class vision:
 
     return (closest_angle * (math.pi / 180))
 
-  def get_jacobian(self, joint_angles, x):
-    x, y, z, w = symbols('x y z w')
+  def get_jacobian(self, joint_angles, forward_kinematics):
     t1_val, t2_val, t3_val, t4_val = joint_angles
-    return (Matrix(x[:3,3]).jacobian([x, y, z, w])).subs([(x, t1_val), (y, t2_val), (z, t3_val), (w, t4_val)])
+    return forward_kinematics.jacobian([self.alpha, self.beta, self.gamma, self.phi]).subs([(self.alpha, t1_val), (self.beta, t2_val), (self.gamma, t3_val), (self.phi, t4_val)])
 
   def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
     print(link_angles)
