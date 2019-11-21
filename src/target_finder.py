@@ -27,6 +27,8 @@ class target_finder:
         self.target_x_position_pub = rospy.Publisher("target_finder/x_position_estimate", Float64, queue_size=10)
         self.target_y_position_pub = rospy.Publisher("target_finder/y_position_estimate", Float64, queue_size=10)
         self.target_z_position_pub = rospy.Publisher("target_finder/z_position_estimate", Float64, queue_size=10)
+        self.complete_target1_pub = rospy.Publisher("target_finder/target_view_1", Image, queue_size=1)
+        self.complete_target2_pub = rospy.Publisher("target_finder/target_view_2", Image, queue_size=1)
 
         self.base_frame_position = [0, 0, 0]
 
@@ -59,7 +61,7 @@ class target_finder:
         except CvBridgeError as e:
             print(e)
 
-        cv2.waitKey(3)
+
         #cv2.imshow("image", self.cv_image1)
 
         if self.base_frame_position == [0, 0, 0]:
@@ -70,6 +72,14 @@ class target_finder:
         complete_target1 = self.threshold_targets(self.cv_image1)
         complete_target2 = self.threshold_targets(self.cv_image2)
 
+        kernel = np.ones((2, 2), np.uint8)
+        complete_target2 = cv2.erode(complete_target2, kernel, iterations=6)
+        complete_target2 = cv2.dilate(complete_target2, kernel, iterations=8)
+
+        self.complete_target1_pub.publish(self.bridge.cv2_to_imgmsg(complete_target1))
+        self.complete_target2_pub.publish(self.bridge.cv2_to_imgmsg(complete_target2))
+
+        cv2.waitKey(3)
         #cv2.imshow("threshold", complete_target1)
         target_centers1 = self.find_centers(complete_target1)
         target_centers2 = self.find_centers(complete_target2)
@@ -102,7 +112,7 @@ class target_finder:
         self.target_x_position_pub.publish(self.sphere['x'])
 
 
-        print (self.sphere)
+        #print (self.sphere)
 
         #TODO: convert to coords relative to base frame position (in meters)
 
@@ -121,8 +131,8 @@ class target_finder:
             sphere_chamfer_distance = np.sum(dist_transformSphere * cropped_target)
 
             #print("rect dist: " + str(rectangle_chamfer_distance) + "    sphere dist: " + str(sphere_chamfer_distance))
-
             if sphere_chamfer_distance < rectangle_chamfer_distance:
+                #print(sphere_chamfer_distance)
                 sphere = [center[0], center[1]]
             else:
                 rectangle = [center[0], center[1]]
