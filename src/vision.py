@@ -5,11 +5,15 @@ import sys
 import rospy
 import cv2
 import math
+
 import numpy as np
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
+from sympy import *
+from mpmath import *
+from sympy.abc import x,y,z,w
 import message_filters
 
 
@@ -122,8 +126,17 @@ class vision:
     print(link3_angle)
 
     link1_angle = [0,0]
-    link2_angle = [-1,1]
-    link3_angle = [0,0.5]
+    link2_angle = [0,0]
+    link3_angle = [0,0]
+
+    """
+    w = link1Angle
+    x= link2_angle[1]
+    y= link2_angle[0]
+    z=link3_angle[1]
+    """
+
+    x, y, z, w = symbols('x y z w')
 
     rot_2 = [[1, 0, 0],
                      [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1])],
@@ -133,20 +146,50 @@ class vision:
                     [-math.sin(link2_angle[0]), 0, math.cos(link2_angle[0])]]
     #print(np.matmul(rot_2, rot_3))
     a12 = np.matrix([[1, 0, 0, 0],
-                     [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1]), 0],
-                     [0, math.sin(link2_angle[1]), math.cos(link2_angle[1]), link1_dist_pixels],
+                     [0, math.cos(x), -math.sin(x), 0],
+                     [0, math.sin(x), math.cos(x), link1_dist_pixels*pixel_in_metres],
                      [0, 0, 0, 1]])
-    a23 = np.matrix([[math.cos(link2_angle[0]), 0, math.sin(link2_angle[0]), 0],
+    a23 = np.matrix([[math.cos(y), 0, math.sin(y), 0],
                     [0, 1, 0, 0],
-                    [-math.sin(link2_angle[0]), 0, math.cos(link2_angle[0]), 0],
+                    [-math.sin(y), 0, math.cos(y), 0],
                     [0, 0, 0, 1]])
 
     a34 = np.matrix([[1, 0, 0, 0],
-                    [0, math.cos(link3_angle[1]), -math.sin(link3_angle[1]), 0],
-                    [0, math.sin(link3_angle[1]), math.cos(link3_angle[1]), link3_dist_pixels],
+                    [0, math.cos(z), -math.sin(z), 0],
+                    [0, math.sin(z), math.cos(z), link3_dist_pixels*pixel_in_metres],
                     [0, 0, 0, 1]])
-    p4 = [0, 0, link4_dist_pixels, 1]
-    print(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4))
+    a12 = Matrix([[1, 0, 0, 0],
+                  [0, math.cos(x), -math.sin(x), 0],
+                  [0, math.sin(x), math.cos(x), 2],
+                  [0, 0, 0, 1]])
+    a23 = Matrix([[math.cos(y), 0, math.sin(y), 0],
+                  [0, 1, 0, 0],
+                  [-math.sin(y), 0, math.cos(y), 0],
+                  [0, 0, 0, 1]])
+
+    a34 = Matrix([[1, 0, 0, 0],
+                  [0, math.cos(z), -math.sin(z), 0],
+                  [0, math.sin(z), math.cos(z), 3],
+                  [0, 0, 0, 1]])
+    p4 = [0, 0, 2, 1]
+    link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
+
+    a01 = Matrix([[math.cos(w), -math.sin(w), 0, 0],
+                  [math.sin(w), math.cos(w), 0, 0],
+                  [0, 0, 1, 0],
+                  [0, 0, 0, 1]])
+    p4 = Matrix([0, 0, link4_dist_pixels*pixel_in_metres, 1])
+    link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
+
+    a01 = np.matrix([[math.cos(w), -math.sin(w), 0, 0],
+                     [math.sin(w), math.cos(w), 0, 0],
+                     [0, 0, 1, 0],
+                     [0, 0, 0, 1]])
+
+    x = np.matmul(np.matmul(np.matmul(np.matmul(a01, a12), a23), a34), p4)
+    print (x)
+    print ([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]])
+    print (self.get_jacobian([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]], x))
     # print("Link 1 angle: " + str(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)))
     # print("Link 2 angle: " + str(link2_angle[1]))
     # print("Link 3 angle: " + str(link2_angle[0]))
@@ -198,6 +241,11 @@ class vision:
         closest_dist = np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(EEVector)))
 
     return (closest_angle * (math.pi / 180))
+
+  def get_jacobian(self, joint_angles, x):
+    x, y, z, w = symbols('x y z w')
+    t1_val, t2_val, t3_val, t4_val = joint_angles
+    return (Matrix(x[:3,3]).jacobian([x, y, z, w])).subs([(x, t1_val), (y, t2_val), (z, t3_val), (w, t4_val)])
 
   def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
     print(link_angles)
