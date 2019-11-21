@@ -82,9 +82,23 @@ class vision:
     print("Joint 2 position: " + str(self.joint23_pos))
     print("Joint 4 position: " + str(self.joint4_pos))
 
-    link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
-    link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
-    link3_angle = np.subtract(self.get_angle_between_points(self.joint4_pos, self.jointEE_pos), link2_angle)
+    link1_vec = {"x": self.joint23_pos['x'] - self.joint1_pos['x'],
+                 "y": self.joint23_pos['y'] - self.joint1_pos['y'],
+                 "z": self.joint23_pos['z'] - self.joint1_pos['z']}
+    link2_vec = {"x": self.joint4_pos['x'] - self.joint23_pos['x'],
+                 "y": self.joint4_pos['y'] - self.joint23_pos['y'],
+                 "z": self.joint4_pos['z'] - self.joint23_pos['z']}
+    link3_vec = {"x": self.jointEE_pos['x'] - self.joint4_pos['x'],
+                 "y": self.jointEE_pos['y'] - self.joint4_pos['y'],
+                 "z": self.jointEE_pos['z'] - self.joint4_pos['z']}
+
+    # link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
+    # link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
+    # link3_angle = self.get_angle_between_points(self.joint4_pos, self.jointEE_pos)
+
+    link1_angle = [0,0]
+    link2_angle = self.get_angle_between_points(link1_vec, link2_vec)
+    link3_angle = self.get_angle_between_points(link2_vec, link3_vec)
 
     print (link1_angle)
 
@@ -94,14 +108,22 @@ class vision:
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
 
-    print("Actual EE: " + str(self.jointEE_pos))
+    #print("Actual EE: " + str(self.jointEE_pos))
    # print("Actual 23: " + str(self.joint23_pos))
    # print("Actual 4: " + str(self.joint4_pos))
 
-    print("Estimated: " + str(self.get_EE_with_forward_kinematics([link1_angle, link2_angle, link3_angle],
-                                              [link1_dist_pixels, link3_dist_pixels, link4_dist_pixels],
-                                              [self.joint1_pos['x'], self.joint1_pos['y'], self.joint1_pos['z']]
-                                              )))
+    # print("Estimated: " + str(self.get_EE_with_forward_kinematics([link1_angle, link2_angle, link3_angle],
+    #                                           [link1_dist_pixels, link3_dist_pixels, link4_dist_pixels],
+    #                                           [self.joint1_pos['x'], self.joint1_pos['y'], self.joint1_pos['z']]
+    #                                           )))
+
+    print(link1_angle)
+    print(link2_angle)
+    print(link3_angle)
+
+    link1_angle = [0,0]
+    link2_angle = [-1,1]
+    link3_angle = [0,0.5]
 
     rot_2 = [[1, 0, 0],
                      [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1])],
@@ -124,6 +146,7 @@ class vision:
                     [0, math.sin(link3_angle[1]), math.cos(link3_angle[1]), link3_dist_pixels],
                     [0, 0, 0, 1]])
     p4 = [0, 0, link4_dist_pixels, 1]
+    print(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4))
     # print("Link 1 angle: " + str(self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)))
     # print("Link 2 angle: " + str(link2_angle[1]))
     # print("Link 3 angle: " + str(link2_angle[0]))
@@ -151,25 +174,30 @@ class vision:
     #
     # print(link4_dist_pixels*pixel_in_metres)
 
+  """Algorithm works when accurate angle measurements for joints 2,3,4 are used"""
   def find_Z_angle(self, EE, a12, a23, a34, p4):
     closest_angle = 400000000000000000000000000
     closest_dist = 10000000000000000000000000
+
+    #Find end-effector position relative to joint 1
+    EE = {"x": EE['x'] - self.joint1_pos['x'], "y": EE['y'] - self.joint1_pos['y'], "z": self.joint1_pos['z'] - EE['z']}
     EEVector = [EE['x'], EE['y'], EE['z']]
-    for cur_z_degrees in range(0, 360):
-      cur_z = cur_z_degrees*(math.pi/180)
+
+    for cur_z_degrees in range(-180, 180):
+      cur_z = cur_z_degrees * (math.pi / 180)
       a01 = np.matrix([[math.cos(cur_z), -math.sin(cur_z), 0, 0],
                        [math.sin(cur_z), math.cos(cur_z), 0, 0],
                        [0, 0, 1, 0],
                        [0, 0, 0, 1]])
       estimated_EE = np.matmul(np.matmul(np.matmul(np.matmul(a01, a12), a23), a34), p4)
-      estimated_EE = ([estimated_EE[0,0], estimated_EE[0,1], estimated_EE[0,2]])
-      #print (estimated_EE)
+      estimated_EE = ([estimated_EE[0, 0], estimated_EE[0, 1], estimated_EE[0, 2]])
+
       if (np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(EEVector))) < closest_dist):
+
         closest_angle = cur_z_degrees
         closest_dist = np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(EEVector)))
 
-    return (closest_angle * (math.pi/180))
-
+    return (closest_angle * (math.pi / 180))
 
   def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
     print(link_angles)
@@ -228,8 +256,12 @@ class vision:
   # Returns the angle between two points in a 2D plane about a horizontal plane
   def get_angle_between_points(self, point1, point2):
 
-    xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2)
-    yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2)
+    #xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2)
+    #yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2)
+    xz_angle = (math.atan2(point2['z'], point2['x']) - math.atan2(point1['z'], point1['x']))
+    yz_angle = (math.atan2(point2['z'], point2['y']) - math.atan2(point1['z'], point1['y'])) % (math.pi)
+
+    yz_angle -= math.pi/2
 
     return [xz_angle, yz_angle]
 
