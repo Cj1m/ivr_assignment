@@ -75,9 +75,6 @@ class target_finder:
         complete_target2 = cv2.erode(complete_target2, kernel, iterations=6)
         complete_target2 = cv2.dilate(complete_target2, kernel, iterations=8)
 
-        self.complete_target1_pub.publish(self.bridge.cv2_to_imgmsg(complete_target1))
-        self.complete_target2_pub.publish(self.bridge.cv2_to_imgmsg(complete_target2))
-
         # Get center of target
         cv2.waitKey(3)
         target_centers1 = self.find_centers(complete_target1)
