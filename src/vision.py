@@ -192,6 +192,10 @@ class vision:
     print("Link 4 Angle: " + str(round(link3_angle_estimated[1], 3)))
 
     print ("\n\n")
+
+    print("Actual: " + str(self.jointEE_pos_in_metres))
+    print("predicted: " + str(self.get_EE_with_forward_kinematics([0, 0, 0, 0])))
+
     """    # Translation matrices in SymPy form
     a12SymPy = Matrix([[1, 0, 0, 0],
                   [0, cos(self.alpha), -sin(self.alpha), 0],
@@ -315,15 +319,29 @@ class vision:
     return np.array([x_d, y_d])
 
 
-  def get_EE_with_forward_kinematics(self, link_angles, link_distances, joint1_pos):
-    print(link_angles)
-    kinematics_joint23_pos = self.get_next_point_pos(joint1_pos, link_distances[0], link_angles[0])
-    print ("Estimated Joint23 Pos; " + str(kinematics_joint23_pos))
-    kinematics_joint4_pos = self.get_next_point_pos(kinematics_joint23_pos, link_distances[1], link_angles[1])
-    print ("Estimated Joint4 Pos; " + str(kinematics_joint4_pos))
-    kinematics_jointEE_pos = self.get_next_point_pos(kinematics_joint4_pos, link_distances[2], link_angles[2])
+  def get_EE_with_forward_kinematics(self, link_angles):
+    a01SymPy = Matrix([[cos(link_angles[0]), -sin(link_angles[0]), 0, 0],
+                       [sin(link_angles[0]), cos(link_angles[0]), 0, 0],
+                       [0, 0, 1, 0],
+                       [0, 0, 0, 1]])
+    a12SymPy = Matrix([[1, 0, 0, 0],
+                     [0, cos(link_angles[1]), -sin(link_angles[1]), 0],
+                     [0, sin(link_angles[1]), cos(link_angles[1]), 2],
+                     [0, 0, 0, 1]])
+    a23SymPy = Matrix([[cos(link_angles[2]), 0, sin(link_angles[2]), 0],
+                     [0, 1, 0, 0],
+                     [-sin(link_angles[2]), 0, cos(link_angles[2]), 0],
+                     [0, 0, 0, 1]])
+    a34SymPy = Matrix([[1, 0, 0, 0],
+                     [0, cos(link_angles[3]), -sin(link_angles[3]), 0],
+                     [0, sin(link_angles[3]), cos(link_angles[3]), 3],
+                     [0, 0, 0, 1]])
+    p4 = Matrix([0, 0, 2, 1])
 
-    return kinematics_jointEE_pos
+    estimated_EE = a01SymPy * a12SymPy * a23SymPy * a34SymPy * p4
+    estimated_EE = np.array([estimated_EE[0], estimated_EE[1], estimated_EE[2]]).astype(np.float64)
+
+    return estimated_EE
 
   def get_next_point_pos(self, curPos, linkLength, angle):
       #print (linkLength)
