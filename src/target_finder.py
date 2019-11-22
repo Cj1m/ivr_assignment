@@ -162,9 +162,10 @@ class target_finder:
         centers = []
         for c in cnts:
            M = cv2.moments(c)
-           cX = int(M["m10"] / M["m00"])
-           cY = int(M["m01"] / M["m00"])
-           centers.append((cX, cY))
+           if M["m00"] != 0:
+               cX = int(M["m10"] / M["m00"])
+               cY = int(M["m01"] / M["m00"])
+               centers.append((cX, cY))
 
         return centers
 

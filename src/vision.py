@@ -66,12 +66,12 @@ class vision:
     self.alpha, self.beta, self.gamma, self.phi = symbols('alpha beta gamma phi')
 
     # Target position
-    self.target_position = [0, 0, 0]
+    self.target_position = [0, 0, 7]
 
     # initialize errors
     self.time_previous_step = np.array([rospy.get_time()], dtype='float64')
-    self.error = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
-    self.error_d = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
+    self.error = np.array([0.0, 0.0, 0.0], dtype='float64')
+    self.error_d = np.array([0.0, 0.0, 0.0], dtype='float64')
 
     self.link1Angle = 0
     self.link2_angle = [0, 0]
@@ -145,6 +145,10 @@ class vision:
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
 
+    self.jointEE_pos_in_metres = {"x": (self.jointEE_pos['x'] - self.joint1_pos['x']) * pixel_in_metres,
+                                 "y": (self.jointEE_pos['y'] - self.joint1_pos['y'])  * pixel_in_metres,
+                                 "z": (self.joint1_pos['z'] - self.jointEE_pos['z'])  * pixel_in_metres}
+
     # print("Estimated: " + str(self.get_EE_with_forward_kinematics([link1_angle, link2_angle, link3_angle],
     #                                           [link1_dist_pixels, link3_dist_pixels, link4_dist_pixels],
     #                                           [self.joint1_pos['x'], self.joint1_pos['y'], self.joint1_pos['z']]
@@ -203,7 +207,7 @@ class vision:
     # Begins forward kinematic control [!!! Replace int vector with joint angle states !!!]
     forward_control = self.get_PID_desired_angles(jacobian, [link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]])
     forward_control = [(forward_control[0] % 2*math.pi) - math.pi, (forward_control[1] % math.pi) - (math.pi/2), (forward_control[2] % math.pi) - (math.pi/2)]
-    print (forward_control)
+
     # uncomment to reset robot
     # forward_control=[0,0,0]
     try:
@@ -259,21 +263,31 @@ class vision:
     cur_time = np.array([rospy.get_time()])
     dt = cur_time - self.time_previous_step
     self.time_previous_step = cur_time
+
     # robot end-effector position
-    pos = [self.jointEE_pos['x'], self.jointEE_pos['y'], self.jointEE_pos['z']]
+    pos = [self.jointEE_pos_in_metres['x'], self.jointEE_pos_in_metres['y'], self.jointEE_pos_in_metres['z']]
     # desired trajectory
     pos_d = self.target_position
-    # estimate error
-    self.error = np.subtract(pos_d, pos)
+
     # estimate derivative of error
     self.error_d = ((np.subtract(pos_d, pos)) - self.error) / dt
+
+    # estimate error
+    self.error = np.subtract(pos_d, pos)
+
+
     q = joint_angles  # estimate initial value of joints'
+
+    # Remove joint 3 from q and J (unnecessary extra degree of freedom)
+    J = np.delete(J, 2, 1)
+    J = np.delete(J, 3, 0)
+    q = np.delete(q, 2,)
+
+
     J_inv = np.linalg.pinv(J)  # calculating the psudeo inverse of Jacobian
     dot_errorDgain = np.dot(K_p, self.error.transpose())
     dot_differenceInErrorDgain = np.dot(K_d, np.add(self.error_d.transpose(), dot_errorDgain))
-    J_inv = np.delete(J_inv,3,0)
-    J_inv = np.delete(J_inv,2,1)
-    q = np.delete(q, 2)
+
     dq_d = np.dot(J_inv, dot_differenceInErrorDgain)  # control input (angular velocity of joints)
     q_d = q + (dt * dq_d)  # control input (angular position of joints)
     return q_d
