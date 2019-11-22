@@ -53,7 +53,6 @@ class target_finder:
 
     # Receive data from camera 1 and camera 2
     def callback(self, data1, data2):
-        # Receive image 1
 
         try:
             self.cv_image1 = self.bridge.imgmsg_to_cv2(data1, "bgr8")
@@ -61,17 +60,17 @@ class target_finder:
         except CvBridgeError as e:
             print(e)
 
-
-        #cv2.imshow("image", self.cv_image1)
-
+        # Set position of base frame
         if self.base_frame_position == [0, 0, 0]:
             base_frame_xzcoords = self.get_base_frame_position(self.cv_image1)
             base_frame_yzcoords = self.get_base_frame_position(self.cv_image2)
             self.base_frame_position = [base_frame_xzcoords[0], base_frame_yzcoords[0], base_frame_yzcoords[1]]
 
+        # Threshold image 1 and image 2 for target and object
         complete_target1 = self.threshold_targets(self.cv_image1)
         complete_target2 = self.threshold_targets(self.cv_image2)
 
+        # Erode and dilate images to improve accuracy
         kernel = np.ones((2, 2), np.uint8)
         complete_target2 = cv2.erode(complete_target2, kernel, iterations=6)
         complete_target2 = cv2.dilate(complete_target2, kernel, iterations=8)
@@ -79,19 +78,19 @@ class target_finder:
         self.complete_target1_pub.publish(self.bridge.cv2_to_imgmsg(complete_target1))
         self.complete_target2_pub.publish(self.bridge.cv2_to_imgmsg(complete_target2))
 
+        # Get center of target
         cv2.waitKey(3)
-        #cv2.imshow("threshold", complete_target1)
         target_centers1 = self.find_centers(complete_target1)
         target_centers2 = self.find_centers(complete_target2)
 
+        # Get object and target coordinates
         sphere_xz, rectangle_xz = self.get_shape_coordinates(target_centers1, complete_target1, self.rectangle_c1_template)
         sphere_yz, rectangle_yz = self.get_shape_coordinates(target_centers2, complete_target2, self.rectangle_c2_template)
-
-        #print("shphere : " + str(sphere_xz) + " " + str(sphere_yz))
 
         joint1_pos = {'y': 399, 'x': 399, 'z': 532}
         pixels_in_meters = 0.0392156862745
 
+        # When the object/target is in site update its coordinates relative to the base frame in metres
         if sphere_xz != [0, 0]:
             self.sphere["x"] = (sphere_xz[0] - self.base_frame_position[0]) * pixels_in_meters
             self.sphere["z"] = (self.base_frame_position[2] - sphere_xz[1]) * pixels_in_meters
@@ -105,36 +104,29 @@ class target_finder:
         if rectangle_yz != [0, 0]:
             self.rectangle["y"] = rectangle_yz[0]
 
-        #print("rectangle: " + str(self.rectangle) + " sphere: " + str(self.sphere))
-            # Publish the results
-
+        # Publish the x, y and z coordinates for the target
         sphere_x = Float64()
         sphere_x.data = self.sphere['x']
         sphere_y = Float64()
         sphere_y.data = self.sphere['y']
         sphere_z = Float64()
         sphere_z.data = self.sphere['z']
-
         try:
+            self.target_x_position_pub.publish(sphere_x)
             self.target_z_position_pub.publish(sphere_z)
             self.target_y_position_pub.publish(sphere_y)
-            self.target_x_position_pub.publish(sphere_x)
         except CvBridgeError as e:
             print(e)
 
-
-
-        #print (self.sphere)
-
-        #TODO: convert to coords relative to base frame position (in meters)
-
+    # Returns the coordinates for the sphere and the rectangle
     def get_shape_coordinates(self, centers, image, rectangle_template):
+
         sphere = [0, 0]
         rectangle = [0, 0]
 
+        # Applies chamfer matching to the target/object to templates
         for center in centers:
             cropped_target = self.cropTarget(image, center, [32, 32])
-            #print("Sphere etemplate shape: " + str(self.sphere_template.shape) + " cropped targerg shape: " + str(cropped_target))
 
             dist_transformSphere = cv2.distanceTransform(cv2.bitwise_not(self.sphere_template), cv2.DIST_L2, 0)
             dist_transformRect = cv2.distanceTransform(cv2.bitwise_not(rectangle_template), cv2.DIST_L2, 0)
@@ -142,23 +134,23 @@ class target_finder:
             rectangle_chamfer_distance = np.sum(dist_transformRect * cropped_target)
             sphere_chamfer_distance = np.sum(dist_transformSphere * cropped_target)
 
-            #print("rect dist: " + str(rectangle_chamfer_distance) + "    sphere dist: " + str(sphere_chamfer_distance))
+            # Assigns center of target/object to coordinates of closest matching template
             if sphere_chamfer_distance < rectangle_chamfer_distance:
-                #print(sphere_chamfer_distance)
                 sphere = [center[0], center[1]]
             else:
                 rectangle = [center[0], center[1]]
 
         return sphere, rectangle
 
+    # Returns a cropped image around the object
     def cropTarget(self, image, center, shape):
         return image[center[1] - shape[1] / 2: center[1] + shape[1] / 2,
                center[0] - shape[0] / 2: center[0] + shape[0] / 2]
 
+    # Returns the center of the object by contouring the image
     def find_centers(self, complete_target):
         cnts, hierarchy = cv2.findContours(complete_target, cv2.RETR_CCOMP,
                                 cv2.CHAIN_APPROX_TC89_L1)
-
         centers = []
         for c in cnts:
            M = cv2.moments(c)
@@ -166,9 +158,9 @@ class target_finder:
                cX = int(M["m10"] / M["m00"])
                cY = int(M["m01"] / M["m00"])
                centers.append((cX, cY))
-
         return centers
 
+    # Returns a thresholded image that includes just the target and object
     def threshold_targets(self, image):
         # Threshold for both box and target on light background
         threshold_objects1 = cv2.inRange(image, (70, 100, 130), (120, 150, 160))
@@ -186,7 +178,7 @@ class target_finder:
 
         return complete_target
 
-
+    # Returns the center of the baseframe from the perspective of the passed image
     def get_base_frame_position(self, image):
         thresholded_image1 = cv2.inRange(image, (102, 102, 102), (140, 140, 140))
 
