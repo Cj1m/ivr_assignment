@@ -73,9 +73,9 @@ class vision:
     self.error = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
     self.error_d = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
 
-    self.link1Angle = 0
-    self.link2_angle = [0, 0]
-    self.link3_angle = [0, 0]
+    self.link1_actual_angle = 0
+    self.link2_actual_angle = [0, 0]
+    self.link3_actual_angle = [0, 0]
 
 
   def update_target_x(self, data):
@@ -136,8 +136,8 @@ class vision:
 
     # Compute each link angle
     link1_angle = [0, 0]
-    link2_angle = self.get_angle_between_points(link1_vec, link2_vec)
-    link3_angle = self.get_angle_between_points(link2_vec, link3_vec)
+    link2_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
+    link3_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
 
     # Get length of each link
     link1_dist_pixels = self.distance_between_joints(self.joint1_pos, self.joint23_pos)
@@ -154,29 +154,41 @@ class vision:
     # print(link2_angle)
     # print(link3_angle)
 
-    link2_angle = self.link2_angle
-    link3_angle = self.link3_angle
-    link1Angle = self.link1Angle
+    link2_angle = self.link2_actual_angle
+    link3_angle = self.link3_actual_angle
+    link1Angle = self.link1_actual_angle
 
+    link2_angle_estimated = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
+    link3_angle_estimated = np.subtract(self.get_angle_between_points(self.joint4_pos, self.jointEE_pos),
+                                        link2_angle_estimated)
     # Translation matrices for each link
     a12 = np.matrix([[1, 0, 0, 0],
-                     [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1]), 0],
-                     [0, math.sin(link2_angle[1]), math.cos(link2_angle[1]), link1_dist_pixels*pixel_in_metres],
+                     [0, math.cos(link2_angle_estimated[1]), -math.sin(link2_angle_estimated[1]), 0],
+                     [0, math.sin(link2_angle_estimated[1]), math.cos(link2_angle_estimated[1]), link1_dist_pixels*pixel_in_metres],
                      [0, 0, 0, 1]])
-    a23 = np.matrix([[math.cos(link2_angle[0]), 0, math.sin(link2_angle[0]), 0],
+    a23 = np.matrix([[math.cos(link2_angle_estimated[0]), 0, math.sin(link2_angle_estimated[0]), 0],
                     [0, 1, 0, 0],
-                    [-math.sin(link2_angle[0]), 0, math.cos(link2_angle[0]), 0],
+                    [-math.sin(link2_angle_estimated[0]), 0, math.cos(link2_angle_estimated[0]), 0],
                     [0, 0, 0, 1]])
 
     a34 = np.matrix([[1, 0, 0, 0],
-                    [0, math.cos(link3_angle[1]), -math.sin(link3_angle[1]), 0],
-                    [0, math.sin(link3_angle[1]), math.cos(link3_angle[1]), link3_dist_pixels*pixel_in_metres],
+                    [0, math.cos(link3_angle_estimated[1]), -math.sin(link3_angle_estimated[1]), 0],
+                    [0, math.sin(link3_angle_estimated[1]), math.cos(link3_angle_estimated[1]), link3_dist_pixels*pixel_in_metres],
                     [0, 0, 0, 1]])
     p4 = [0, 0, 2, 1]
 
-    # dont delete link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
+    # Get link Angles
+    link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
+    link2_angle_estimated = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
+    link3_angle_estimated = np.subtract(self.get_angle_between_points(self.joint4_pos, self.jointEE_pos), link2_angle_estimated)
 
-    # Translation matrices in SymPy form
+    print("Link 1 Angle: " + str(round(link1Angle, 3)))
+    print("Link 2 Angle: " + str(round(link2_angle_estimated[1], 3)))
+    print("Link 3 Angle: " + str(round(link2_angle_estimated[0], 3)))
+    print("Link 4 Angle: " + str(round(link3_angle_estimated[1], 3)))
+
+    print ("\n\n")
+    """    # Translation matrices in SymPy form
     a12SymPy = Matrix([[1, 0, 0, 0],
                   [0, cos(self.alpha), -sin(self.alpha), 0],
                   [0, sin(self.alpha), cos(self.alpha), 2],
@@ -205,11 +217,12 @@ class vision:
     forward_control = [(forward_control[0] % 2*math.pi) - math.pi, (forward_control[1] % math.pi) - (math.pi/2), (forward_control[2] % math.pi) - (math.pi/2)]
     print (forward_control)
     # uncomment to reset robot
-    # forward_control=[0,0,0]
+    """
+    forward_control=[0,0,0]
     try:
-      self.link1Angle = forward_control[0]
-      self.link2_angle[1] = forward_control[1]
-      self.link3_angle[1] = forward_control[2]
+      self.link1_actual_angle = forward_control[0]
+      self.link2_actual_angle[1] = forward_control[1]
+      self.link3_actual_angle[1] = forward_control[2]
       self.joint1_publisher.publish(Float64(data=forward_control[0]))
       self.joint2_publisher.publish(Float64(data=forward_control[1]))
       self.joint4_publisher.publish(Float64(data=forward_control[2]))
@@ -345,14 +358,10 @@ class vision:
   # Returns the angle between two points in a 2D plane about a horizontal plane
   def get_angle_between_points(self, point1, point2):
 
-    #xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi/2)
-    #yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi/2)
-    xz_angle = (math.atan2(point2['z'], point2['x']) - math.atan2(point1['z'], point1['x']))
-    yz_angle = (math.atan2(point2['z'], point2['y']) - math.atan2(point1['z'], point1['y'])) % (math.pi)
+    xz_angle = ((math.atan2(point2['z'] - point1['z'], point2['x'] - point1['x'])) + math.pi / 2)
+    yz_angle = ((math.atan2(point2['z'] - point1['z'], point2['y'] - point1['y'])) + math.pi / 2)
 
-    yz_angle -= math.pi/2
-
-    return [xz_angle, yz_angle]
+    return [xz_angle, yz_angle*-1]
 
   def distance_between_joints(self, point1, point2):
     return math.sqrt(math.pow(point2['x'] - point1['x'], 2) + math.pow(point2['y'] - point1['y'], 2)
