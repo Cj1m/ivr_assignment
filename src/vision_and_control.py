@@ -28,6 +28,11 @@ class vision:
         self.joint3_publisher = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
         self.joint4_publisher = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
 
+        # Create a new topic for publishing the end effector position
+        self.ee_x_position_pub = rospy.Publisher("ee_finder/x_position_estimate", Float64, queue_size=10)
+        self.ee_y_position_pub = rospy.Publisher("ee_finder/y_position_estimate", Float64, queue_size=10)
+        self.ee_z_position_pub = rospy.Publisher("ee_finder/z_position_estimate", Float64, queue_size=10)
+
         # Subscribe to camera 1 output processed by image1.py
         self.image_sub1 = message_filters.Subscriber("/image_topic1", Image)
 
@@ -179,6 +184,20 @@ class vision:
         # For controlling the robot use actual angles of joints
         link2_angle = self.link2_actual_angle
         link3_angle = self.link3_actual_angle
+
+        # Publish the x, y and z coordinates for the end effector
+        ee_x = Float64()
+        ee_x.data = self.jointEE_pos_in_metres['x']
+        ee_y = Float64()
+        ee_y.data = self.jointEE_pos_in_metres['y']
+        ee_z = Float64()
+        ee_z.data = self.jointEE_pos_in_metres['z']
+        try:
+            self.ee_x_position_pub.publish(ee_x)
+            self.ee_z_position_pub.publish(ee_z)
+            self.ee_y_position_pub.publish(ee_y)
+        except CvBridgeError as e:
+            print(e)
 
         # Calculate Jacobian matrix [Replace int vector with joint angle states ]
         jacobian = self.get_jacobian([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]],
