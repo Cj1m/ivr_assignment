@@ -23,7 +23,10 @@ class vision:
     rospy.init_node('image_processing2', anonymous=True)
 
     # Create new topic for publishing rotation matrices to
-    self.rot_pub = rospy.Publisher("rot_pub", Float64MultiArray, queue_size = 1)
+    self.joint1_publisher = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size = 10)
+    self.joint2_publisher = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size = 10)
+    self.joint3_publisher = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size = 10)
+    self.joint4_publisher = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size = 10)
 
     # Subscribe to camera 1 output processed by image1.py
     self.image_sub1 = message_filters.Subscriber("/image_topic1", Image)
@@ -69,6 +72,10 @@ class vision:
     self.time_previous_step = np.array([rospy.get_time()], dtype='float64')
     self.error = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
     self.error_d = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
+
+    self.link1Angle = 0
+    self.link2_angle = [0, 0]
+    self.link3_angle = [0, 0]
 
 
   def update_target_x(self, data):
@@ -143,13 +150,13 @@ class vision:
     #                                           [self.joint1_pos['x'], self.joint1_pos['y'], self.joint1_pos['z']]
     #                                           )))
 
-    print(link1_angle)
-    print(link2_angle)
-    print(link3_angle)
+    # print(link1_angle)
+    # print(link2_angle)
+    # print(link3_angle)
 
-    link1_angle = [0, 0]
-    link2_angle = [0, 0]
-    link3_angle = [0, 0]
+    link2_angle = self.link2_angle
+    link3_angle = self.link3_angle
+    link1Angle = self.link1Angle
 
     # Translation matrices for each link
     a12 = np.matrix([[1, 0, 0, 0],
@@ -167,7 +174,7 @@ class vision:
                     [0, 0, 0, 1]])
     p4 = [0, 0, 2, 1]
 
-    link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
+    # dont delete link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
 
     # Translation matrices in SymPy form
     a12SymPy = Matrix([[1, 0, 0, 0],
@@ -191,10 +198,23 @@ class vision:
     combined_translation_matrices = a01SymPy * a12SymPy * a23SymPy * a34SymPy * p4
 
     # Calculate Jacobian matrix [!!! Replace int vector with joint angle states !!!]
-    jacobian = self.get_jacobian([0, 0, 0, 0], combined_translation_matrices)
+    jacobian = self.get_jacobian([link1Angle, 0, 0, 0], combined_translation_matrices)
 
     # Begins forward kinematic control [!!! Replace int vector with joint angle states !!!]
-    forward_control = self.get_PID_desired_angles(jacobian, [0, 0, 0, 0])
+    forward_control = self.get_PID_desired_angles(jacobian, [link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]])
+    forward_control = [(forward_control[0] % 2*math.pi) - math.pi, (forward_control[1] % math.pi) - (math.pi/2), (forward_control[2] % math.pi) - (math.pi/2)]
+    print (forward_control)
+    # uncomment to reset robot
+    # forward_control=[0,0,0]
+    try:
+      self.link1Angle = forward_control[0]
+      self.link2_angle[1] = forward_control[1]
+      self.link3_angle[1] = forward_control[2]
+      self.joint1_publisher.publish(Float64(data=forward_control[0]))
+      self.joint2_publisher.publish(Float64(data=forward_control[1]))
+      self.joint4_publisher.publish(Float64(data=forward_control[2]))
+    except CvBridgeError as e:
+      print(e)
 
   """Algorithm works when accurate angle measurements for joints 2,3,4 are used"""
   def find_Z_angle(self, EE, a12, a23, a34, p4):
@@ -232,9 +252,9 @@ class vision:
   def get_PID_desired_angles(self, jacobian, joint_angles):
     J = np.array(jacobian).astype(np.float64)
     # P gain
-    K_p = np.array([[10, 0, 0, 0], [0, 10, 0, 0], [0, 0, 10, 0], [0, 0, 0, 10]])
+    K_p = np.array([[10, 0, 0], [0, 10, 0], [0, 0, 10]])
     # D gain
-    K_d = np.array([[0.1, 0, 0, 0], [0, 0.1, 0, 0], [0, 0, 0.1, 0], [0, 0, 0, 0.1]])
+    K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
     # estimate time step
     cur_time = np.array([rospy.get_time()])
     dt = cur_time - self.time_previous_step
@@ -243,15 +263,18 @@ class vision:
     pos = [self.jointEE_pos['x'], self.jointEE_pos['y'], self.jointEE_pos['z']]
     # desired trajectory
     pos_d = self.target_position
-    # estimate derivative of error
-    self.error_d = ((np.subtract(pos_d, pos)) - self.error) / dt
     # estimate error
     self.error = np.subtract(pos_d, pos)
-    print (np.dot(K_p, self.error.transpose()))
+    # estimate derivative of error
+    self.error_d = ((np.subtract(pos_d, pos)) - self.error) / dt
     q = joint_angles  # estimate initial value of joints'
     J_inv = np.linalg.pinv(J)  # calculating the psudeo inverse of Jacobian
-    print (J_inv)
-    dq_d = np.dot(J_inv, (np.dot(K_d, np.add(self.error_d.transpose(), np.dot(K_p, self.error.transpose())))))  # control input (angular velocity of joints)
+    dot_errorDgain = np.dot(K_p, self.error.transpose())
+    dot_differenceInErrorDgain = np.dot(K_d, np.add(self.error_d.transpose(), dot_errorDgain))
+    J_inv = np.delete(J_inv,3,0)
+    J_inv = np.delete(J_inv,2,1)
+    q = np.delete(q, 2)
+    dq_d = np.dot(J_inv, dot_differenceInErrorDgain)  # control input (angular velocity of joints)
     q_d = q + (dt * dq_d)  # control input (angular position of joints)
     return q_d
 
