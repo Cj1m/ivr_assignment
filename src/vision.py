@@ -21,12 +21,15 @@ class vision:
   def __init__(self):
     # initialize the node named image_processing
     rospy.init_node('image_processing2', anonymous=True)
-    #Create new topic for publishing rotation matrices to
+
+    # Create new topic for publishing rotation matrices to
     self.rot_pub = rospy.Publisher("rot_pub", Float64MultiArray, queue_size = 1)
-    #Subscribe to camera 1 output processed by image1.py
-    self.image_sub1 = message_filters.Subscriber("/image_topic1",Image)
-    #Subscribe to camera 2 output processed by image2.py
-    self.image_sub2 = message_filters.Subscriber("/image_topic2",Image)
+
+    # Subscribe to camera 1 output processed by image1.py
+    self.image_sub1 = message_filters.Subscriber("/image_topic1", Image)
+
+    # Subscribe to camera 2 output processed by image2.py
+    self.image_sub2 = message_filters.Subscriber("/image_topic2", Image)
     self.target_x_sub = rospy.Subscriber("/target_finder/x_position_estimate", Float64, self.update_target_x)
     self.target_y_sub = rospy.Subscriber("/target_finder/y_position_estimate", Float64, self.update_target_y)
     self.target_z_sub = rospy.Subscriber("/target_finder/z_position_estimate", Float64, self.update_target_z)
@@ -36,25 +39,32 @@ class vision:
 
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
-    #Get the time
+
+    # Get the time
     self.time_trajectory = rospy.get_time()
     self.time_previous_step = np.array([rospy.get_time()], dtype='float64')
-    #Joint 1 co-ordinates
+
+    # Each joints coordinates
     self.joint1_pos = {"x": 0, "y" : 0, "z": 0}
-    # Joint 23 co-ordinates
     self.joint23_pos = {"x": 0, "y": 0, "z": 0}
-    # Joint 4 co-ordinates
     self.joint4_pos = {"x": 0, "y": 0, "z": 0}
-    # Joint EE co-ordinates
     self.jointEE_pos = {"x": 0, "y": 0, "z": 0}
-    # Colour threshold dictionary
+
+    # Colour threshold dictionaries
     self.upper_threshold = {'yellow':  (5, 255, 255), 'blue' : (255, 5, 5), 'green' : (5, 255, 5), 'red': (5, 5, 255) }
-    #Colour lower threshold disctionary
     self.lower_threshold = {'yellow': (0,10,10), 'blue' : (10, 0, 0), 'green' :  (0, 10, 0), 'red': (0, 0, 10) }
 
-    self.target_position = [0,0,0]
+    # Symbols construction
+    # alpha =   link1Angle
+    # beta  =   link2_angle[1]
+    # gamma =   link2_angle[0]
+    # phi   =   link3_angle[1]
 
-    self.time_trajectory = rospy.get_time()
+    self.alpha, self.beta, self.gamma, self.phi = symbols('alpha beta gamma phi')
+
+    # Target position
+    self.target_position = [0, 0, 0]
+
     # initialize errors
     self.time_previous_step = np.array([rospy.get_time()], dtype='float64')
     self.error = np.array([0.0, 0.0, 0.0, 0.0], dtype='float64')
@@ -82,17 +92,18 @@ class vision:
 
     # cv2.imshow("image 1", self.cv_image1)
     # cv2.imshow("image 2", self.cv_image2)
-    #print(target_x)
-    #self.target_trajectory = [target_x, target_y, target_z]
+    # print(target_x)
+    # self.target_trajectory = [target_x, target_y, target_z]
 
     cv2.waitKey(1)
-    #Get each joints co-ordinates from camera 1
+
+    # Get each joints co-ordinates from camera 1
     image1_joint1 = self.get_joint_coordinates(self.cv_image1, "yellow")
     image1_joint23 = self.get_joint_coordinates(self.cv_image1, "blue" )
     image1_joint4 = self.get_joint_coordinates(self.cv_image1, "green" )
     image1_jointEE = self.get_joint_coordinates(self.cv_image1, "red")
 
-    #Get each joints co-ordinates from camera 2
+    # Get each joints co-ordinates from camera 2
     image2_joint1 = self.get_joint_coordinates(self.cv_image2, "yellow")
     image2_joint23 = self.get_joint_coordinates(self.cv_image2,  "blue" )
     image2_joint4 = self.get_joint_coordinates(self.cv_image2, "green" )
@@ -105,9 +116,7 @@ class vision:
     self.set_coordinates(image1_joint4, image2_joint4, self.joint4_pos)
     self.set_coordinates(image1_jointEE, image2_jointEE, self.jointEE_pos)
 
-    print("Joint 2 position: " + str(self.joint23_pos))
-    print("Joint 4 position: " + str(self.joint4_pos))
-
+    # Build each links vector
     link1_vec = {"x": self.joint23_pos['x'] - self.joint1_pos['x'],
                  "y": self.joint23_pos['y'] - self.joint1_pos['y'],
                  "z": self.joint23_pos['z'] - self.joint1_pos['z']}
@@ -118,25 +127,16 @@ class vision:
                  "y": self.jointEE_pos['y'] - self.joint4_pos['y'],
                  "z": self.jointEE_pos['z'] - self.joint4_pos['z']}
 
-    # link1_angle = self.get_angle_between_points(self.joint1_pos, self.joint23_pos)
-    # link2_angle = self.get_angle_between_points(self.joint23_pos, self.joint4_pos)
-    # link3_angle = self.get_angle_between_points(self.joint4_pos, self.jointEE_pos)
-
-    link1_angle = [0,0]
+    # Compute each link angle
+    link1_angle = [0, 0]
     link2_angle = self.get_angle_between_points(link1_vec, link2_vec)
     link3_angle = self.get_angle_between_points(link2_vec, link3_vec)
-
-    print (link1_angle)
 
     # Get length of each link
     link1_dist_pixels = self.distance_between_joints(self.joint1_pos, self.joint23_pos)
     link3_dist_pixels = self.distance_between_joints(self.joint23_pos, self.joint4_pos)
     link4_dist_pixels = self.distance_between_joints(self.joint4_pos, self.jointEE_pos)
     pixel_in_metres = 2/link1_dist_pixels
-
-    #print("Actual EE: " + str(self.jointEE_pos))
-   # print("Actual 23: " + str(self.joint23_pos))
-   # print("Actual 4: " + str(self.joint4_pos))
 
     # print("Estimated: " + str(self.get_EE_with_forward_kinematics([link1_angle, link2_angle, link3_angle],
     #                                           [link1_dist_pixels, link3_dist_pixels, link4_dist_pixels],
@@ -147,26 +147,11 @@ class vision:
     print(link2_angle)
     print(link3_angle)
 
-    link1_angle = [0,0]
-    link2_angle = [0,0]
-    link3_angle = [0,0]
+    link1_angle = [0, 0]
+    link2_angle = [0, 0]
+    link3_angle = [0, 0]
 
-    """
-    w = link1Angle
-    x= link2_angle[1]
-    y= link2_angle[0]
-    z=link3_angle[1]
-    """
-
-    self.alpha, self.beta, self.gamma, self.phi = symbols('alpha beta gamma phi')
-
-    rot_2 = [[1, 0, 0],
-                     [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1])],
-                     [0, math.sin(link2_angle[1]), math.cos(link2_angle[1])]]
-    rot_3 = [[math.cos(link2_angle[0]), 0, math.sin(link2_angle[0])],
-                    [0, 1, 0],
-                    [-math.sin(link2_angle[0]), 0, math.cos(link2_angle[0])]]
-    #print(np.matmul(rot_2, rot_3))
+    # Translation matrices for each link
     a12 = np.matrix([[1, 0, 0, 0],
                      [0, math.cos(link2_angle[1]), -math.sin(link2_angle[1]), 0],
                      [0, math.sin(link2_angle[1]), math.cos(link2_angle[1]), link1_dist_pixels*pixel_in_metres],
@@ -180,10 +165,11 @@ class vision:
                     [0, math.cos(link3_angle[1]), -math.sin(link3_angle[1]), 0],
                     [0, math.sin(link3_angle[1]), math.cos(link3_angle[1]), link3_dist_pixels*pixel_in_metres],
                     [0, 0, 0, 1]])
-
     p4 = [0, 0, 2, 1]
+
     link1Angle = self.find_Z_angle(self.jointEE_pos, a12, a23, a34, p4)
 
+    # Translation matrices in SymPy form
     a12SymPy = Matrix([[1, 0, 0, 0],
                   [0, cos(self.alpha), -sin(self.alpha), 0],
                   [0, sin(self.alpha), cos(self.alpha), 2],
@@ -202,23 +188,27 @@ class vision:
                   [0, 0, 0, 1]])
     p4 = Matrix([0, 0, link4_dist_pixels*pixel_in_metres, 1])
 
+    combined_translation_matrices = a01SymPy * a12SymPy * a23SymPy * a34SymPy * p4
 
-    x = MatMul(MatMul(MatMul(MatMul(a01SymPy, a12SymPy), a23SymPy), a34SymPy), p4)
-    xx = a01SymPy * a12SymPy * a23SymPy * a34SymPy * p4
-    #pprint(xx)
-    #print ([link1Angle, link2_angle[1], link2_angle[0], link3_angle[1]])
-    #pprint (self.get_jacobian([0, 0, 0, 0], xx))
-    pprint(self.get_PID_desired_angles(self.get_jacobian([0, 0, 0, 0], xx), [0,0,0,0]))
+    # Calculate Jacobian matrix [!!! Replace int vector with joint angle states !!!]
+    jacobian = self.get_jacobian([0, 0, 0, 0], combined_translation_matrices)
+
+    # Begins forward kinematic control [!!! Replace int vector with joint angle states !!!]
+    forward_control = self.get_PID_desired_angles(jacobian, [0, 0, 0, 0])
 
   """Algorithm works when accurate angle measurements for joints 2,3,4 are used"""
   def find_Z_angle(self, EE, a12, a23, a34, p4):
-    closest_angle = 400000000000000000000000000
-    closest_dist = 10000000000000000000000000
 
-    #Find end-effector position relative to joint 1
-    EE = {"x": EE['x'] - self.joint1_pos['x'], "y": EE['y'] - self.joint1_pos['y'], "z": self.joint1_pos['z'] - EE['z']}
-    EEVector = [EE['x'], EE['y'], EE['z']]
+    # Set closest angle and closest dist to values that will be overwritten
+    closest_angle = 99999
+    closest_dist = 99999
 
+    # Find end-effector position relative to joint 1
+    actual_EE = {"x": EE['x'] - self.joint1_pos['x'], "y": EE['y'] - self.joint1_pos['y'], "z": self.joint1_pos['z'] - EE['z']}
+    actual_EE_vector = [actual_EE['x'], actual_EE['y'], actual_EE['z']]
+
+    # Rotate through all z angles in 2pi, subbing them into joint1 rotation matrix
+    # Return angle of z that has closest estimated end effector position
     for cur_z_degrees in range(-180, 180):
       cur_z = cur_z_degrees * (math.pi / 180)
       a01 = np.matrix([[math.cos(cur_z), -math.sin(cur_z), 0, 0],
@@ -228,20 +218,19 @@ class vision:
       estimated_EE = np.matmul(np.matmul(np.matmul(np.matmul(a01, a12), a23), a34), p4)
       estimated_EE = ([estimated_EE[0, 0], estimated_EE[0, 1], estimated_EE[0, 2]])
 
-      if (np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(EEVector))) < closest_dist):
+      # euclidean distance of estimated end effector to actual end effector position
+      if (np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(actual_EE_vector))) < closest_dist):
 
         closest_angle = cur_z_degrees
-        closest_dist = np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(EEVector)))
+        closest_dist = np.linalg.norm(np.subtract(np.array(estimated_EE), np.array(actual_EE_vector)))
 
     return (closest_angle * (math.pi / 180))
 
   def get_jacobian(self, joint_angles, forward_kinematics):
-    t1_val, t2_val, t3_val, t4_val = joint_angles
-    return forward_kinematics.jacobian([self.alpha, self.beta, self.gamma, self.phi]).subs([(self.alpha, t1_val), (self.beta, t2_val), (self.gamma, t3_val), (self.phi, t4_val)])
+    return forward_kinematics.jacobian([self.alpha, self.beta, self.gamma, self.phi]).subs([(self.alpha, joint_angles[0]), (self.beta, joint_angles[1]), (self.gamma, joint_angles[2]), (self.phi, joint_angles[3])])
 
-  def get_PID_desired_angles(self, J, joint_angles):
-    J = np.array(J).astype(np.float64)
-
+  def get_PID_desired_angles(self, jacobian, joint_angles):
+    J = np.array(jacobian).astype(np.float64)
     # P gain
     K_p = np.array([[10, 0, 0, 0], [0, 10, 0, 0], [0, 0, 10, 0], [0, 0, 0, 10]])
     # D gain
@@ -351,27 +340,6 @@ class vision:
     length = np.linalg.norm(vector)
     normal_vector = vector / length
     return normal_vector
-
-  def rotation_matrix_X(self, target, v):
-    [tx, ty, tz] = -target
-    [v1, v2, v3] = -v
-    cos_alpha = (ty*v[1] + tz*v[2]) / (math.pow(v2, 2) - math.pow(v3, 2))
-    sin_alpha = ((v2*cos_alpha) - ty) / v3
-    return [[1, 0, 0], [0, cos_alpha, -sin_alpha], [0, sin_alpha, cos_alpha]]
-
-  def rotation_matrix_Y(self, target, v):
-    [tx, ty, tz] = -target
-    [v1, v2, v3] = -v
-    cos_beta = (v1*tx + v3*tz) / (math.pow(v1, 2) + math.pow(v3, 2))
-    sin_beta = (tx-v1*cos_beta) / v3
-    return [[cos_beta, 0, sin_beta], [0, 1, 0], [-sin_beta, 0, cos_beta]]
-
-  def rotation_matrix_Z(self, target, v):
-    [tx, ty, tz] = -target
-    [v1, v2, v3] = -v
-    cos_gamma = (v1*tx + v2*ty) / (math.pow(v1, 2) + math.pow(v2, 2))
-    sin_gamma = (ty - v2*cos_gamma) / v1
-    return [[cos_gamma, -sin_gamma, 0], [sin_gamma, cos_gamma, 0], [0, 0, 1]]
 
 # call the class
 def main(args):
